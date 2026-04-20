@@ -1,0 +1,49 @@
+appId: com.taskforcer.app
+productName: TaskForcer
+copyright: Copyright © 2024 TaskForcer
+
+directories:
+  buildResources: build
+  output: release
+
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - node_modules/**/*
+  - package.json
+
+extraMetadata:
+  main: dist-electron/main.js
+
+asar: true
+asarUnpack:
+  - node_modules/better-sqlite3/**
+  - node_modules/active-win/**
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  icon: build/icon.icns
+  category: public.app-category.productivity
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  icon: build/icon.png
+  category: Utility
+
+publish: null

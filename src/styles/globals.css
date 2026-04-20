@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Local fonts */
+@font-face {
+  font-family: 'Inter';
+  src: url('../fonts/Inter-Variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('../fonts/JetBrainsMono-Variable.woff2') format('woff2-variations');
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Design tokens */
+:root {
+  /* Backgrounds */
+  --tf-bg: #09090b;             /* zinc-950 */
+  --tf-bg-secondary: #18181b;   /* zinc-900 */
+  --tf-bg-tertiary: #27272a;    /* zinc-800 */
+
+  /* Borders */
+  --tf-border: rgba(63, 63, 70, 0.6);   /* zinc-700/60 */
+  --tf-border-subtle: rgba(39, 39, 42, 0.8); /* zinc-800/80 */
+
+  /* Text */
+  --tf-text: #fafafa;            /* zinc-50 */
+  --tf-text-muted: #a1a1aa;      /* zinc-400 */
+  --tf-text-faint: #52525b;      /* zinc-600 */
+
+  /* Status colors */
+  --tf-critical: #ef4444;        /* red-500 */
+  --tf-critical-bg: rgba(239, 68, 68, 0.1);
+  --tf-complete: #10b981;        /* emerald-500 */
+  --tf-complete-bg: rgba(16, 185, 129, 0.1);
+  --tf-progress: #f59e0b;        /* amber-400 */
+  --tf-progress-bg: rgba(245, 158, 11, 0.1);
+
+  /* Accent */
+  --tf-accent: #6366f1;          /* indigo-500 */
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--tf-bg);
+  color: var(--tf-text);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* Drag region for frameless window */
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--tf-bg-tertiary);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--tf-accent);
+  outline-offset: 2px;
+}
+
+/* Selection */
+::selection {
+  background: rgba(99, 102, 241, 0.3);
+}
