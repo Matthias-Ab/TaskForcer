@@ -1,0 +1,6 @@
+const Module = require('module')
+console.log('builtins include electron:', Module.builtinModules.includes('electron'))
+console.log('electron builtins:', Module.builtinModules.filter(m => m.includes('electron')))
+const e = require('electron')
+console.log('electron type:', typeof e, typeof e === 'string' ? e.substring(0, 30) : Object.keys(e).join(','))
+process.exit(0)

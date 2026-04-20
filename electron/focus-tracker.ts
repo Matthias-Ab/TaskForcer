@@ -112,12 +112,14 @@ function notifyDistraction(appName: string, _winTitle: string): void {
   }
 }
 
-ipcMain.handle('focus:start', (_e, sessionId: string, taskId: string) => {
-  startFocusTracking(sessionId, taskId)
-  return { ok: true }
-})
+export function registerFocusIpc(): void {
+  ipcMain.handle('focus:start', (_e, sessionId: string, taskId: string) => {
+    startFocusTracking(sessionId, taskId)
+    return { ok: true }
+  })
 
-ipcMain.handle('focus:stop', () => {
-  stopFocusTracking()
-  return { ok: true }
-})
+  ipcMain.handle('focus:stop', () => {
+    stopFocusTracking()
+    return { ok: true }
+  })
+}

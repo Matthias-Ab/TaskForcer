@@ -54,17 +54,19 @@ export function updateWidgetTask(taskId: string | null, taskTitle: string | null
   }
 }
 
-ipcMain.handle('widget:minimize-temporarily', () => {
-  if (widgetWin && !widgetWin.isDestroyed()) {
-    widgetWin.hide()
-    setTimeout(() => {
-      if (widgetWin && !widgetWin.isDestroyed()) widgetWin.show()
-    }, 30 * 1000)
-  }
-  return { ok: true }
-})
+export function registerWidgetIpc(): void {
+  ipcMain.handle('widget:minimize-temporarily', () => {
+    if (widgetWin && !widgetWin.isDestroyed()) {
+      widgetWin.hide()
+      setTimeout(() => {
+        if (widgetWin && !widgetWin.isDestroyed()) widgetWin.show()
+      }, 30 * 1000)
+    }
+    return { ok: true }
+  })
 
-ipcMain.handle('widget:set-position', (_e, x: number, y: number) => {
-  if (widgetWin && !widgetWin.isDestroyed()) widgetWin.setPosition(Math.round(x), Math.round(y))
-  return { ok: true }
-})
+  ipcMain.handle('widget:set-position', (_e, x: number, y: number) => {
+    if (widgetWin && !widgetWin.isDestroyed()) widgetWin.setPosition(Math.round(x), Math.round(y))
+    return { ok: true }
+  })
+}

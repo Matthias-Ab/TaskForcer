@@ -6,9 +6,10 @@ import { registerShameIpc } from './ipc/shame'
 import { registerScoresIpc } from './ipc/scores'
 import { registerSettingsIpc } from './ipc/settings'
 import { registerForcingIpc, startIdleDetection, setupEndOfDayGuard } from './forcing'
+import { registerFocusIpc } from './focus-tracker'
 import { initScheduler } from './scheduler'
 import { createTray, destroyTray } from './tray'
-import { createWidgetWindow, showWidget, updateWidgetTask } from './widget-window'
+import { createWidgetWindow, showWidget, updateWidgetTask, registerWidgetIpc } from './widget-window'
 import AutoLaunch from 'auto-launch'
 
 const isDev = process.env.NODE_ENV === 'development'
@@ -99,28 +100,35 @@ function checkMorningPopup(): void {
   }
 }
 
-ipcMain.handle('morning:dismiss', () => {
-  morningWindow?.hide()
-  return { ok: true }
-})
+function registerMainIpc(): void {
+  ipcMain.handle('morning:dismiss', () => {
+    morningWindow?.hide()
+    return { ok: true }
+  })
 
-ipcMain.handle('task:started', (_e, taskId: string, taskTitle: string) => {
-  updateWidgetTask(taskId, taskTitle)
-  showWidget()
-  return { ok: true }
-})
+  ipcMain.handle('task:started', (_e, taskId: string, taskTitle: string) => {
+    updateWidgetTask(taskId, taskTitle)
+    showWidget()
+    return { ok: true }
+  })
 
-ipcMain.handle('task:stopped', () => {
-  updateWidgetTask(null, null)
-  return { ok: true }
-})
+  ipcMain.handle('task:stopped', () => {
+    updateWidgetTask(null, null)
+    return { ok: true }
+  })
 
-ipcMain.handle('shell:openExternal', (_e, url: string) => {
-  // Only allow http/https URLs
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    shell.openExternal(url)
-  }
-})
+  ipcMain.handle('shell:openExternal', (_e, url: string) => {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      shell.openExternal(url)
+    }
+  })
+
+  ipcMain.handle('scoring:invalidate', async () => {
+    const { calculateTodayScore } = await import('./ipc/scores')
+    try { calculateTodayScore() } catch { /* noop */ }
+    return { ok: true }
+  })
+}
 
 async function setupAutoLaunch(): Promise<void> {
   autoLauncher = new AutoLaunch({
@@ -138,6 +146,9 @@ app.whenReady().then(async () => {
   registerScoresIpc()
   registerSettingsIpc()
   registerForcingIpc()
+  registerWidgetIpc()
+  registerFocusIpc()
+  registerMainIpc()
 
   // Initialize features
   initScheduler()

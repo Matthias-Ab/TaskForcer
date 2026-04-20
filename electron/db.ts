@@ -3,9 +3,8 @@ import { app, safeStorage } from 'electron'
 import path from 'path'
 import fs from 'fs'
 
-const DB_DIR = path.join(app.getPath('home'), '.taskforcer')
-const DB_PATH = path.join(DB_DIR, 'taskforcer.db')
-
+let DB_DIR: string
+let DB_PATH: string
 let db: Database.Database
 
 export function getDb(): Database.Database {
@@ -14,6 +13,9 @@ export function getDb(): Database.Database {
 }
 
 export function initDb(): void {
+  DB_DIR = path.join(app.getPath('home'), '.taskforcer')
+  DB_PATH = path.join(DB_DIR, 'taskforcer.db')
+
   if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true })
 
   db = new Database(DB_PATH)
