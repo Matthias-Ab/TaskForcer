@@ -4,7 +4,6 @@ import { Play, Trash2, AlarmClock, Pencil, ChevronDown } from 'lucide-react'
 import { Task } from '@/hooks/useTasks'
 import { cn, formatDate, isOverdue } from '@/lib/utils'
 import { spring, checkmark } from '@/lib/animations'
-import { Button } from './ui/Button'
 
 const SNOOZE_OPTIONS = [
   { label: '15 min', minutes: 15 },
@@ -30,11 +29,11 @@ export function TaskCard({
   onComplete, onStart, onSnooze, onDelete, onEdit,
 }: TaskCardProps) {
   const [completing, setCompleting] = useState(false)
-  const [showActions, setShowActions] = useState(false)
   const [showSnooze, setShowSnooze] = useState(false)
   const snoozeRef = useRef<HTMLDivElement>(null)
 
   const overdue = isOverdue(task.due_at) && task.status !== 'completed'
+  const isInProgress = (task.status as string) === 'in_progress'
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -53,12 +52,6 @@ export function TaskCard({
     onComplete(task.id)
   }
 
-  function handleCardClick() {
-    if (selectionMode) onSelect?.(task.id)
-  }
-
-  const isInProgress = (task.status as string) === 'in_progress'
-
   const cardBg = isInProgress
     ? 'rgba(245,158,11,0.05)'
     : overdue
@@ -73,19 +66,18 @@ export function TaskCard({
     ? 'rgba(99,102,241,0.5)'
     : 'var(--tf-card-border)'
 
+  const showActionsArea = task.status !== 'completed' && !selectionMode
+
   return (
     <motion.div
       layout
-      layoutId={task.id}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: task.status === 'completed' ? 0.5 : 1, y: 0 }}
       exit={{ opacity: 0, height: 0, marginBottom: 0, transition: { duration: 0.25 } }}
       transition={spring}
       className="group flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors cursor-default"
       style={{ background: cardBg, borderColor: cardBorder }}
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => { setShowActions(false); setShowSnooze(false) }}
-      onClick={handleCardClick}
+      onClick={() => selectionMode && onSelect?.(task.id)}
     >
       {/* Checkbox */}
       <button
@@ -128,17 +120,16 @@ export function TaskCard({
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <p className={cn(
-          'text-sm font-medium truncate',
-          task.status === 'completed' ? 'line-through' : ''
-        )}
+        <p
+          className={cn('text-sm font-medium truncate', task.status === 'completed' ? 'line-through' : '')}
           style={{ color: task.status === 'completed' ? 'var(--tf-text-faint)' : 'var(--tf-text)' }}
         >
           {task.title}
         </p>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           {task.due_at && (
-            <span className={cn('text-xs flex items-center gap-1', overdue ? 'text-red-400' : '')}
+            <span
+              className={cn('text-xs', overdue ? 'text-red-400' : '')}
               style={overdue ? {} : { color: 'var(--tf-text-faint)' }}
             >
               {formatDate(task.due_at)}
@@ -161,11 +152,11 @@ export function TaskCard({
               )}
             </div>
           )}
-          {task.estimate_minutes && (
+          {task.estimate_minutes ? (
             <span className="text-xs font-mono" style={{ color: 'var(--tf-text-faint)' }}>
               {task.estimate_minutes}m
             </span>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -176,74 +167,91 @@ export function TaskCard({
         </span>
       )}
 
-      {/* Actions */}
-      <AnimatePresence>
-        {showActions && task.status !== 'completed' && !selectionMode && (
-          <motion.div
-            initial={{ opacity: 0, x: 8 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 8 }}
-            transition={{ duration: 0.12 }}
-            className="flex items-center gap-1 titlebar-no-drag flex-shrink-0"
-          >
-            {!isInProgress && (
-              <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); onStart(task.id) }} title="Start task" className="w-7 h-7 p-0">
-                <Play size={12} />
-              </Button>
-            )}
-            <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); onEdit(task) }} title="Edit task" className="w-7 h-7 p-0">
-              <Pencil size={12} />
-            </Button>
+      {/* Actions — always in DOM, revealed via CSS group-hover so no JS state resets */}
+      {showActionsArea && (
+        <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150 titlebar-no-drag">
+          {!isInProgress && (
+            <ActionBtn onClick={e => { e.stopPropagation(); onStart(task.id) }} title="Start task">
+              <Play size={12} />
+            </ActionBtn>
+          )}
+          <ActionBtn onClick={e => { e.stopPropagation(); onEdit(task) }} title="Edit task">
+            <Pencil size={12} />
+          </ActionBtn>
 
-            {/* Snooze dropdown */}
-            <div className="relative" ref={snoozeRef}>
-              <Button
-                size="sm" variant="ghost"
-                onClick={e => { e.stopPropagation(); setShowSnooze(s => !s) }}
-                title="Snooze"
-                className="w-7 h-7 p-0"
-              >
-                <AlarmClock size={12} />
-              </Button>
-              <AnimatePresence>
-                {showSnooze && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: -4 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: -4 }}
-                    transition={{ duration: 0.1 }}
-                    className="absolute right-0 top-full mt-1 rounded-xl border shadow-xl z-50 overflow-hidden min-w-[120px]"
-                    style={{ background: 'var(--tf-dialog-bg)', borderColor: 'var(--tf-border)' }}
-                  >
-                    {SNOOZE_OPTIONS.map(opt => (
-                      <button
-                        key={opt.minutes}
-                        className="w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2"
-                        style={{ color: 'var(--tf-text)' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--tf-bg-tertiary)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = '')}
-                        onClick={e => { e.stopPropagation(); onSnooze(task.id, opt.minutes); setShowSnooze(false) }}
-                      >
-                        <ChevronDown size={10} style={{ color: 'var(--tf-text-faint)' }} />
-                        {opt.label}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <Button
-              size="sm" variant="ghost"
-              onClick={e => { e.stopPropagation(); onDelete(task.id) }}
-              title="Delete task"
-              className="w-7 h-7 p-0 !text-red-500 hover:!text-red-400"
+          {/* Snooze dropdown */}
+          <div className="relative" ref={snoozeRef}>
+            <ActionBtn
+              onClick={e => { e.stopPropagation(); setShowSnooze(s => !s) }}
+              title="Snooze"
             >
-              <Trash2 size={12} />
-            </Button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <AlarmClock size={12} />
+            </ActionBtn>
+            <AnimatePresence>
+              {showSnooze && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                  transition={{ duration: 0.1 }}
+                  className="absolute right-0 top-full mt-1 rounded-xl border shadow-xl overflow-hidden min-w-[120px]"
+                  style={{ background: 'var(--tf-dialog-bg)', borderColor: 'var(--tf-border)', zIndex: 100 }}
+                >
+                  {SNOOZE_OPTIONS.map(opt => (
+                    <button
+                      key={opt.minutes}
+                      className="w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2"
+                      style={{ color: 'var(--tf-text)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--tf-bg-tertiary)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = '')}
+                      onClick={e => { e.stopPropagation(); onSnooze(task.id, opt.minutes); setShowSnooze(false) }}
+                    >
+                      <ChevronDown size={10} style={{ color: 'var(--tf-text-faint)' }} />
+                      {opt.label}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <ActionBtn
+            onClick={e => { e.stopPropagation(); onDelete(task.id) }}
+            title="Delete task"
+            danger
+          >
+            <Trash2 size={12} />
+          </ActionBtn>
+        </div>
+      )}
     </motion.div>
+  )
+}
+
+function ActionBtn({
+  onClick, title, danger, children,
+}: {
+  onClick: (e: React.MouseEvent) => void
+  title: string
+  danger?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+      style={{ color: danger ? '#ef4444' : 'var(--tf-text-muted)' }}
+      onMouseEnter={e => {
+        e.currentTarget.style.background = danger ? 'rgba(239,68,68,0.1)' : 'var(--tf-bg-tertiary)'
+        if (!danger) e.currentTarget.style.color = 'var(--tf-text)'
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.background = ''
+        e.currentTarget.style.color = danger ? '#ef4444' : 'var(--tf-text-muted)'
+      }}
+    >
+      {children}
+    </button>
   )
 }

@@ -255,9 +255,8 @@ function TaskGroup({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="overflow-hidden"
           >
-            <motion.div className="space-y-1.5" layout>
+            <motion.div className="space-y-1.5 pb-1" layout>
               <AnimatePresence initial={false}>
                 {tasks.map(task => (
                   <motion.div

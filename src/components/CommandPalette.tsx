@@ -27,6 +27,9 @@ export function CommandPalette({ onCreateTask }: CommandPaletteProps) {
         setOpen(o => !o)
       }
       if (!open && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const tag = (e.target as HTMLElement).tagName
+        const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable
+        if (isTyping) return
         const shortcuts: Record<string, string> = {
           '1': '/today', '2': '/calendar', '3': '/upcoming', '4': '/stats', '5': '/shame',
         }
