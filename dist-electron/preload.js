@@ -1,14 +1,15 @@
-const { contextBridge, ipcRenderer } = await import('electron');
-contextBridge.exposeInMainWorld('electron', {
-    invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const electron_1 = require("electron");
+electron_1.contextBridge.exposeInMainWorld('electron', {
+    invoke: (channel, ...args) => electron_1.ipcRenderer.invoke(channel, ...args),
     on: (channel, listener) => {
-        ipcRenderer.on(channel, (_event, ...args) => listener(...args));
+        electron_1.ipcRenderer.on(channel, (_event, ...args) => listener(...args));
     },
     off: (channel, listener) => {
-        ipcRenderer.removeListener(channel, listener);
+        electron_1.ipcRenderer.removeListener(channel, listener);
     },
     once: (channel, listener) => {
-        ipcRenderer.once(channel, (_event, ...args) => listener(...args));
+        electron_1.ipcRenderer.once(channel, (_event, ...args) => listener(...args));
     },
 });
-export {};

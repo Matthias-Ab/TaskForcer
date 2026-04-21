@@ -1,7 +1,11 @@
-import { getDb } from '../db.js';
-const { ipcMain } = await import('electron');
-export function calculateTodayScore() {
-    const db = getDb();
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.calculateTodayScore = calculateTodayScore;
+exports.registerScoresIpc = registerScoresIpc;
+const electron_1 = require("electron");
+const db_1 = require("../db");
+function calculateTodayScore() {
+    const db = (0, db_1.getDb)();
     const today = new Date().toISOString().split('T')[0];
     const todayStart = new Date(today);
     todayStart.setHours(0, 0, 0, 0);
@@ -41,13 +45,13 @@ export function calculateTodayScore() {
   `).run(today, completionPct * 100, focusPct * 100, score, streakDay);
     return { date: today, completion_pct: completionPct * 100, focus_pct: focusPct * 100, score, streak_day: streakDay };
 }
-export function registerScoresIpc() {
-    ipcMain.handle('scores:today', () => calculateTodayScore());
-    ipcMain.handle('scores:history', (_e, days = 30) => {
-        return getDb().prepare('SELECT * FROM daily_scores ORDER BY date DESC LIMIT ?').all(days).reverse();
+function registerScoresIpc() {
+    electron_1.ipcMain.handle('scores:today', () => calculateTodayScore());
+    electron_1.ipcMain.handle('scores:history', (_e, days = 30) => {
+        return (0, db_1.getDb)().prepare('SELECT * FROM daily_scores ORDER BY date DESC LIMIT ?').all(days).reverse();
     });
-    ipcMain.handle('scores:streak', () => {
-        const row = getDb().prepare('SELECT streak_day FROM daily_scores ORDER BY date DESC LIMIT 1').get();
+    electron_1.ipcMain.handle('scores:streak', () => {
+        const row = (0, db_1.getDb)().prepare('SELECT streak_day FROM daily_scores ORDER BY date DESC LIMIT 1').get();
         return row?.streak_day || 0;
     });
 }

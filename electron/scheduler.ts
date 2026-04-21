@@ -1,12 +1,9 @@
-import { createRequire } from 'module'
-import { getDb, getSetting } from './db.js'
-import { addShameEntry } from './forcing.js'
+import { BrowserWindow, Notification } from 'electron'
+import { getDb, getSetting } from './db'
+import { addShameEntry } from './forcing'
 import { randomUUID } from 'crypto'
-import { calculateTodayScore } from './ipc/scores.js'
+import { calculateTodayScore } from './ipc/scores'
 
-const { BrowserWindow, Notification } = await import('electron')
-
-const require = createRequire(import.meta.url)
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const schedule = require('node-schedule') as typeof import('node-schedule')
 

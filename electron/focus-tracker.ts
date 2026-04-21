@@ -1,7 +1,6 @@
-import { getDb, getSetting } from './db.js'
-import { addShameEntry } from './forcing.js'
-
-const { BrowserWindow, ipcMain } = await import('electron')
+import { BrowserWindow, ipcMain } from 'electron'
+import { getDb, getSetting } from './db'
+import { addShameEntry } from './forcing'
 
 let pollInterval: ReturnType<typeof setInterval> | null = null
 let activeSessionId: string | null = null

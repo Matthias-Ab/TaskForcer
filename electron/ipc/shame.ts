@@ -1,7 +1,6 @@
-import { getDb } from '../db.js'
+import { ipcMain } from 'electron'
+import { getDb } from '../db'
 import { randomUUID } from 'crypto'
-
-const { ipcMain } = await import('electron')
 
 export interface ShameEntry {
   id: string

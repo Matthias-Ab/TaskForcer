@@ -1,0 +1,49 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { useState, useEffect } from 'react';
+import { FixedSizeList as List } from 'react-window';
+import { motion } from 'framer-motion';
+import { ipc } from '@/lib/ipc';
+import { pageTransition } from '@/lib/animations';
+import { TaskSkeletonList } from '@/components/ui/Skeleton';
+import { priorityColor, cn } from '@/lib/utils';
+import { Clock, CheckSquare2 } from 'lucide-react';
+export function UpcomingView() {
+    const [tasks, setTasks] = useState([]);
+    const [loading, setLoading] = useState(true);
+    useEffect(() => {
+        ipc.invoke('tasks:upcoming').then(data => {
+            setTasks(data);
+            setLoading(false);
+        });
+    }, []);
+    // Group by day
+    const groups = [];
+    for (const task of tasks) {
+        if (!task.due_at)
+            continue;
+        const date = new Date(task.due_at).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+        const existing = groups.find(g => g.date === date);
+        if (existing)
+            existing.tasks.push(task);
+        else
+            groups.push({ date, tasks: [task] });
+    }
+    const flat = [];
+    for (const group of groups) {
+        flat.push({ type: 'header', date: group.date });
+        for (const task of group.tasks)
+            flat.push({ type: 'task', task });
+    }
+    const ITEM_SIZE = 56;
+    return (_jsxs(motion.div, { variants: pageTransition, initial: "hidden", animate: "visible", exit: "exit", className: "flex flex-col h-full overflow-hidden", children: [_jsx("div", { className: "flex items-center justify-between px-6 py-4 border-b border-zinc-800/40 flex-shrink-0", children: _jsxs("div", { children: [_jsx("h1", { className: "text-lg font-semibold text-zinc-100", children: "Upcoming" }), _jsxs("p", { className: "text-xs text-zinc-500 mt-0.5", children: ["Next 7 days \u00B7 ", tasks.length, " tasks"] })] }) }), _jsx("div", { className: "flex-1 overflow-hidden px-6 py-4", children: loading ? (_jsx(TaskSkeletonList, { count: 8 })) : flat.length === 0 ? (_jsxs("div", { className: "flex flex-col items-center justify-center h-full text-center", children: [_jsx(CheckSquare2, { size: 36, className: "text-zinc-600 mb-3" }), _jsx("p", { className: "text-zinc-500 text-sm", children: "No upcoming tasks in the next 7 days." })] })) : flat.length > 50 ? (_jsx(List, { height: 600, itemCount: flat.length, itemSize: ITEM_SIZE, width: "100%", children: ({ index, style }) => {
+                        const item = flat[index];
+                        if (item.type === 'header') {
+                            return (_jsx("div", { style: style, className: "flex items-center pt-3 pb-1", children: _jsx("span", { className: "text-xs font-semibold text-zinc-500 uppercase tracking-wider", children: item.date }) }));
+                        }
+                        return (_jsx("div", { style: style, children: _jsx(UpcomingTaskRow, { task: item.task }) }));
+                    } })) : (_jsx("div", { className: "space-y-4", children: groups.map(group => (_jsxs("div", { children: [_jsx("p", { className: "text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2", children: group.date }), _jsx("div", { className: "space-y-1", children: group.tasks.map(task => _jsx(UpcomingTaskRow, { task: task }, task.id)) })] }, group.date))) })) })] }));
+}
+function UpcomingTaskRow({ task }) {
+    return (_jsxs("div", { className: "flex items-center gap-3 px-4 py-2.5 rounded-xl border border-zinc-800/40 bg-zinc-900/30 hover:border-zinc-700/60 transition-colors", children: [_jsx("div", { className: cn('w-1.5 h-1.5 rounded-full flex-shrink-0', task.priority === 'critical' ? 'bg-red-500' :
+                    task.priority === 'medium' ? 'bg-amber-400' : 'bg-zinc-600') }), _jsx("span", { className: "text-sm text-zinc-200 flex-1 truncate", children: task.title }), _jsx("span", { className: cn('text-xs flex items-center gap-1', priorityColor(task.priority)), children: task.priority }), task.due_at && (_jsxs("span", { className: "text-xs text-zinc-500 font-mono flex items-center gap-1", children: [_jsx(Clock, { size: 10 }), new Date(task.due_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })] }))] }));
+}

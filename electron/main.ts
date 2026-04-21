@@ -1,26 +1,27 @@
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import path from 'path'
 import fs from 'fs'
-import { fileURLToPath } from 'url'
-import { initDb } from './db.js'
-import { registerTaskIpc } from './ipc/tasks.js'
-import { registerShameIpc } from './ipc/shame.js'
-import { registerScoresIpc, calculateTodayScore } from './ipc/scores.js'
-import { registerSettingsIpc } from './ipc/settings.js'
-import { registerForcingIpc, startIdleDetection, setupEndOfDayGuard } from './forcing.js'
-import { registerFocusIpc } from './focus-tracker.js'
-import { initScheduler } from './scheduler.js'
-import { createTray, destroyTray } from './tray.js'
-import { createWidgetWindow, showWidget, updateWidgetTask, registerWidgetIpc } from './widget-window.js'
+import { initDb, getSetting } from './db'
 
-const { app, BrowserWindow, ipcMain, shell } = await import('electron')
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const AutoLaunch = require('auto-launch')
+const autoLauncher = new AutoLaunch({ name: 'TaskForcer', isHidden: true })
+import { registerTaskIpc } from './ipc/tasks'
+import { registerShameIpc } from './ipc/shame'
+import { registerScoresIpc, calculateTodayScore } from './ipc/scores'
+import { registerSettingsIpc } from './ipc/settings'
+import { registerForcingIpc, startIdleDetection, setupEndOfDayGuard } from './forcing'
+import { registerFocusIpc } from './focus-tracker'
+import { initScheduler } from './scheduler'
+import { createTray, destroyTray } from './tray'
+import { createWidgetWindow, showWidget, updateWidgetTask, registerWidgetIpc } from './widget-window'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isDev = process.env.NODE_ENV === 'development'
 
-let mainWindow: InstanceType<typeof BrowserWindow> | null = null
-let morningWindow: InstanceType<typeof BrowserWindow> | null = null
+let mainWindow: BrowserWindow | null = null
+let morningWindow: BrowserWindow | null = null
 
-function createMainWindow(): InstanceType<typeof BrowserWindow> {
+function createMainWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
     width: 1100,
     height: 720,
@@ -61,7 +62,7 @@ function createMainWindow(): InstanceType<typeof BrowserWindow> {
   return mainWindow
 }
 
-function createMorningWindow(): InstanceType<typeof BrowserWindow> {
+function createMorningWindow(): BrowserWindow {
   morningWindow = new BrowserWindow({
     width: 700,
     height: 550,
@@ -137,6 +138,20 @@ function registerMainIpc(): void {
 
 app.whenReady().then(async () => {
   initDb()
+
+  // Apply auto-launch setting
+  const autoLaunchEnabled = getSetting('auto_launch') === 'true'
+  autoLauncher.isEnabled().then((enabled: boolean) => {
+    if (autoLaunchEnabled && !enabled) autoLauncher.enable().catch(() => {})
+    else if (!autoLaunchEnabled && enabled) autoLauncher.disable().catch(() => {})
+  }).catch(() => {})
+
+  // Re-apply when user toggles the setting
+  ipcMain.handle('auto_launch:toggle', (_e, enable: boolean) => {
+    if (enable) autoLauncher.enable().catch(() => {})
+    else autoLauncher.disable().catch(() => {})
+    return { ok: true }
+  })
 
   registerTaskIpc()
   registerShameIpc()

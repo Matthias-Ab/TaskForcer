@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = await import('electron')
+import { contextBridge, ipcRenderer } from 'electron'
 
 type IpcListener = (...args: unknown[]) => void
 

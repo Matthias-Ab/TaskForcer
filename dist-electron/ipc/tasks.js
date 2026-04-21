@@ -1,6 +1,9 @@
-import { getDb } from '../db.js';
-import { randomUUID } from 'crypto';
-const { ipcMain } = await import('electron');
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.registerTaskIpc = registerTaskIpc;
+const electron_1 = require("electron");
+const db_1 = require("../db");
+const crypto_1 = require("crypto");
 function parseTask(row) {
     return {
         ...row,
@@ -10,9 +13,9 @@ function parseTask(row) {
         tags: JSON.parse(row.tags || '[]'),
     };
 }
-export function registerTaskIpc() {
-    ipcMain.handle('tasks:list', (_e, filter) => {
-        const db = getDb();
+function registerTaskIpc() {
+    electron_1.ipcMain.handle('tasks:list', (_e, filter) => {
+        const db = (0, db_1.getDb)();
         let query = 'SELECT * FROM tasks WHERE 1=1';
         const params = [];
         if (filter?.status) {
@@ -31,8 +34,8 @@ export function registerTaskIpc() {
         const rows = db.prepare(query).all(...params);
         return rows.map(parseTask);
     });
-    ipcMain.handle('tasks:today', () => {
-        const db = getDb();
+    electron_1.ipcMain.handle('tasks:today', () => {
+        const db = (0, db_1.getDb)();
         const today = new Date();
         const start = new Date(today);
         start.setHours(0, 0, 0, 0);
@@ -48,11 +51,11 @@ export function registerTaskIpc() {
     `).all(start.getTime(), end.getTime(), end.getTime());
         return rows.map(parseTask);
     });
-    ipcMain.handle('tasks:create', (_e, data) => {
-        const db = getDb();
+    electron_1.ipcMain.handle('tasks:create', (_e, data) => {
+        const db = (0, db_1.getDb)();
         const task = {
             ...data,
-            id: randomUUID(),
+            id: (0, crypto_1.randomUUID)(),
             created_at: Date.now(),
             status: data.status || 'pending',
         };
@@ -64,8 +67,8 @@ export function registerTaskIpc() {
     `).run(task.id, task.title, task.description, task.due_at, task.priority, task.estimate_minutes, task.status, task.created_at, task.completed_at, task.recurrence_rule, task.parent_task_id, JSON.stringify(task.required_tools), JSON.stringify(task.allowed_urls), JSON.stringify(task.distraction_apps), JSON.stringify(task.tags));
         return task;
     });
-    ipcMain.handle('tasks:update', (_e, id, data) => {
-        const db = getDb();
+    electron_1.ipcMain.handle('tasks:update', (_e, id, data) => {
+        const db = (0, db_1.getDb)();
         const updates = [];
         const params = [];
         const jsonFields = new Set(['required_tools', 'allowed_urls', 'distraction_apps', 'tags']);
@@ -82,33 +85,33 @@ export function registerTaskIpc() {
         const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
         return row ? parseTask(row) : null;
     });
-    ipcMain.handle('tasks:delete', (_e, id) => {
-        getDb().prepare('DELETE FROM tasks WHERE id = ?').run(id);
+    electron_1.ipcMain.handle('tasks:delete', (_e, id) => {
+        (0, db_1.getDb)().prepare('DELETE FROM tasks WHERE id = ?').run(id);
         return { ok: true };
     });
-    ipcMain.handle('tasks:complete', (_e, id) => {
-        const db = getDb();
+    electron_1.ipcMain.handle('tasks:complete', (_e, id) => {
+        const db = (0, db_1.getDb)();
         const completedAt = Date.now();
         db.prepare(`UPDATE tasks SET status = 'completed', completed_at = ? WHERE id = ?`).run(completedAt, id);
         const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
         return row ? parseTask(row) : null;
     });
-    ipcMain.handle('tasks:start', (_e, id) => {
-        const db = getDb();
+    electron_1.ipcMain.handle('tasks:start', (_e, id) => {
+        const db = (0, db_1.getDb)();
         db.prepare(`UPDATE tasks SET status = 'pending' WHERE status = 'in_progress' AND id != ?`).run(id);
         db.prepare(`UPDATE tasks SET status = 'in_progress' WHERE id = ?`).run(id);
-        const sessionId = randomUUID();
+        const sessionId = (0, crypto_1.randomUUID)();
         db.prepare(`INSERT INTO sessions (id, task_id, started_at) VALUES (?, ?, ?)`).run(sessionId, id, Date.now());
         const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
         return { task: row ? parseTask(row) : null, sessionId };
     });
-    ipcMain.handle('tasks:snooze', (_e, id, minutes) => {
+    electron_1.ipcMain.handle('tasks:snooze', (_e, id, minutes) => {
         const snoozeUntil = Date.now() + minutes * 60 * 1000;
-        getDb().prepare(`UPDATE tasks SET status = 'snoozed', due_at = ? WHERE id = ?`).run(snoozeUntil, id);
+        (0, db_1.getDb)().prepare(`UPDATE tasks SET status = 'snoozed', due_at = ? WHERE id = ?`).run(snoozeUntil, id);
         return { ok: true };
     });
-    ipcMain.handle('tasks:upcoming', () => {
-        const db = getDb();
+    electron_1.ipcMain.handle('tasks:upcoming', () => {
+        const db = (0, db_1.getDb)();
         const now = Date.now();
         const weekLater = now + 7 * 24 * 60 * 60 * 1000;
         const rows = db.prepare(`

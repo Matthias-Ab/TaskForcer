@@ -16,6 +16,9 @@ export function useSettings() {
     setSettings(prev => ({ ...prev, [key]: value }))
     try {
       await ipc.invoke('settings:set', key, value)
+      if (key === 'auto_launch') {
+        ipc.invoke('auto_launch:toggle', value === 'true').catch(() => {})
+      }
     } catch {
       setSettings(prev => ({ ...prev }))
     }
