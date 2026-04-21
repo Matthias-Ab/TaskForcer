@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "description": "Aggressive productivity app that forces you to complete tasks",
   "main": "dist-electron/main.js",
-  "author": "TaskForcer",
+  "author": {
+    "name": "TaskForcer",
+    "email": "matthiasabddisa@gmail.com"
+  },
   "license": "MIT",
   "scripts": {
     "dev": "concurrently -k \"npm run dev:vite\" \"npm run dev:electron\"",

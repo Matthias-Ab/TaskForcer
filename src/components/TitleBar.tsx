@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Minus, Square, X, CheckSquare2 } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
-import { cn } from '@/lib/utils'
 
 export function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false)
@@ -11,57 +10,45 @@ export function TitleBar() {
   }, [])
 
   return (
-    <div className="titlebar-drag flex items-center justify-between h-10 px-4 flex-shrink-0 select-none border-b border-zinc-800/60">
-      {/* App identity */}
+    <div
+      className="titlebar-drag flex items-center justify-between h-10 px-4 flex-shrink-0 select-none border-b"
+      style={{ borderColor: 'var(--tf-border)', background: 'var(--tf-bg)' }}
+    >
       <div className="flex items-center gap-2 titlebar-no-drag">
         <CheckSquare2 size={16} className="text-indigo-400" />
-        <span className="text-sm font-semibold text-zinc-300">TaskForcer</span>
+        <span className="text-sm font-semibold" style={{ color: 'var(--tf-text-muted)' }}>TaskForcer</span>
       </div>
 
-      {/* Window controls */}
       <div className="titlebar-no-drag flex items-center gap-1">
-        <WindowButton
-          onClick={() => ipc.invoke('window:minimize')}
-          icon={<Minus size={12} />}
-          title="Minimize"
-          hoverClass="hover:bg-zinc-700"
-        />
-        <WindowButton
-          onClick={() => {
-            ipc.invoke('window:maximize')
-            setIsMaximized(m => !m)
-          }}
+        <WinBtn onClick={() => ipc.invoke('window:minimize')} icon={<Minus size={12} />} title="Minimize" danger={false} />
+        <WinBtn
+          onClick={() => { ipc.invoke('window:maximize'); setIsMaximized(m => !m) }}
           icon={<Square size={10} />}
           title={isMaximized ? 'Restore' : 'Maximize'}
-          hoverClass="hover:bg-zinc-700"
+          danger={false}
         />
-        <WindowButton
-          onClick={() => ipc.invoke('window:close')}
-          icon={<X size={12} />}
-          title="Close"
-          hoverClass="hover:bg-red-600"
-        />
+        <WinBtn onClick={() => ipc.invoke('window:close')} icon={<X size={12} />} title="Close" danger />
       </div>
     </div>
   )
 }
 
-function WindowButton({
-  onClick, icon, title, hoverClass,
-}: {
-  onClick: () => void
-  icon: React.ReactNode
-  title: string
-  hoverClass: string
-}) {
+function WinBtn({ onClick, icon, title, danger }: { onClick: () => void; icon: React.ReactNode; title: string; danger: boolean }) {
   return (
     <button
       onClick={onClick}
       title={title}
-      className={cn(
-        'w-7 h-7 rounded-lg flex items-center justify-center text-zinc-400 transition-all duration-100',
-        hoverClass, 'hover:text-zinc-100 active:scale-90'
-      )}
+      className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-100 active:scale-90"
+      style={{ color: 'var(--tf-text-muted)' }}
+      onMouseEnter={e => {
+        e.currentTarget.style.background = danger ? '#dc2626' : 'var(--tf-bg-tertiary)'
+        if (danger) e.currentTarget.style.color = '#ffffff'
+        else e.currentTarget.style.color = 'var(--tf-text)'
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.background = ''
+        e.currentTarget.style.color = 'var(--tf-text-muted)'
+      }}
     >
       {icon}
     </button>

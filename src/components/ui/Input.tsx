@@ -7,20 +7,28 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, className, ...props }, ref) => {
+  ({ label, error, className, style, ...props }, ref) => {
     return (
       <div className="flex flex-col gap-1.5">
-        {label && <label className="text-xs font-medium text-zinc-400">{label}</label>}
+        {label && (
+          <label className="text-xs font-medium" style={{ color: 'var(--tf-text-muted)' }}>
+            {label}
+          </label>
+        )}
         <input
           ref={ref}
           className={cn(
-            'w-full rounded-xl bg-zinc-800/80 border border-zinc-700/60 px-3 py-2 text-sm text-zinc-100',
-            'placeholder:text-zinc-600',
+            'w-full rounded-xl px-3 py-2 text-sm border transition-all duration-150',
             'focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent',
-            'transition-all duration-150',
             error && 'border-red-500 focus:ring-red-500',
             className
           )}
+          style={{
+            background: 'var(--tf-input-bg)',
+            borderColor: error ? undefined : 'var(--tf-input-border)',
+            color: 'var(--tf-input-text)',
+            ...style,
+          }}
           {...props}
         />
         {error && <p className="text-xs text-red-400">{error}</p>}
@@ -35,19 +43,27 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 }
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ label, className, ...props }, ref) => {
+  ({ label, className, style, ...props }, ref) => {
     return (
       <div className="flex flex-col gap-1.5">
-        {label && <label className="text-xs font-medium text-zinc-400">{label}</label>}
+        {label && (
+          <label className="text-xs font-medium" style={{ color: 'var(--tf-text-muted)' }}>
+            {label}
+          </label>
+        )}
         <textarea
           ref={ref}
           className={cn(
-            'w-full rounded-xl bg-zinc-800/80 border border-zinc-700/60 px-3 py-2 text-sm text-zinc-100 resize-none',
-            'placeholder:text-zinc-600',
+            'w-full rounded-xl px-3 py-2 text-sm border resize-none transition-all duration-150',
             'focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent',
-            'transition-all duration-150',
             className
           )}
+          style={{
+            background: 'var(--tf-input-bg)',
+            borderColor: 'var(--tf-input-border)',
+            color: 'var(--tf-input-text)',
+            ...style,
+          }}
           {...props}
         />
       </div>

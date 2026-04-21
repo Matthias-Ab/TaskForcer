@@ -12,6 +12,12 @@ interface CreateTaskFormProps {
   compact?: boolean
 }
 
+const selectStyle = {
+  background: 'var(--tf-input-bg)',
+  borderColor: 'var(--tf-input-border)',
+  color: 'var(--tf-input-text)',
+}
+
 export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTaskFormProps) {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
@@ -20,6 +26,7 @@ export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTa
   const [dueDate, setDueDate] = useState('')
   const [estimate, setEstimate] = useState('30')
   const [tags, setTags] = useState('')
+  const [recurrence, setRecurrence] = useState('')
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -33,12 +40,14 @@ export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTa
       due_at: dueDate ? new Date(dueDate).getTime() : null,
       estimate_minutes: parseInt(estimate) || 30,
       tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+      recurrence_rule: recurrence || null,
     })
     setTitle('')
     setDescription('')
     setDueDate('')
     setEstimate('30')
     setTags('')
+    setRecurrence('')
     setLoading(false)
     setOpen(false)
   }
@@ -51,17 +60,21 @@ export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTa
             <motion.button
               initial={{ opacity: 0 }} animate={{ opacity: 1 }}
               onClick={() => setOpen(true)}
-              className="flex items-center gap-2 w-full px-4 py-2.5 rounded-xl border border-dashed border-zinc-700/60 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 text-sm transition-colors"
+              className="flex items-center gap-2 w-full px-4 py-2.5 rounded-xl border border-dashed text-sm transition-colors"
+              style={{ borderColor: 'var(--tf-border)', color: 'var(--tf-text-muted)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--tf-text)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--tf-text-muted)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--tf-text-muted)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--tf-border)' }}
             >
               <Plus size={14} />
               Add task...
-              <span className="ml-auto text-xs text-zinc-600 font-mono">N</span>
+              <span className="ml-auto text-xs font-mono" style={{ color: 'var(--tf-text-faint)' }}>N</span>
             </motion.button>
           ) : (
             <motion.form
               variants={scaleIn} initial="hidden" animate="visible" exit="exit"
               onSubmit={handleSubmit}
-              className="rounded-xl border border-indigo-500/30 bg-zinc-900/80 p-4 space-y-3"
+              className="rounded-xl border border-indigo-500/30 p-4 space-y-3"
+              style={{ background: 'var(--tf-bg-secondary)' }}
             >
               <Input
                 autoFocus
@@ -74,7 +87,8 @@ export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTa
                 <select
                   value={priority}
                   onChange={e => setPriority(e.target.value as Task['priority'])}
-                  className="flex-1 rounded-xl bg-zinc-800/80 border border-zinc-700/60 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="flex-1 rounded-xl px-3 py-2 text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  style={selectStyle}
                 >
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
@@ -134,11 +148,12 @@ export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTa
       />
       <div className="grid grid-cols-3 gap-3">
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-zinc-400">Priority</label>
+          <label className="text-xs font-medium" style={{ color: 'var(--tf-text-muted)' }}>Priority</label>
           <select
             value={priority}
             onChange={e => setPriority(e.target.value as Task['priority'])}
-            className="rounded-xl bg-zinc-800/80 border border-zinc-700/60 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="rounded-xl px-3 py-2 text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            style={selectStyle}
           >
             <option value="low">Low</option>
             <option value="medium">Medium</option>
@@ -159,12 +174,28 @@ export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTa
           min="1"
         />
       </div>
-      <Input
-        label="Tags"
-        placeholder="work, health, learning"
-        value={tags}
-        onChange={e => setTags(e.target.value)}
-      />
+      <div className="grid grid-cols-2 gap-3">
+        <Input
+          label="Tags"
+          placeholder="work, health, learning"
+          value={tags}
+          onChange={e => setTags(e.target.value)}
+        />
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium" style={{ color: 'var(--tf-text-muted)' }}>Recurrence</label>
+          <select
+            value={recurrence}
+            onChange={e => setRecurrence(e.target.value)}
+            className="rounded-xl px-3 py-2 text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            style={selectStyle}
+          >
+            <option value="">None</option>
+            <option value="daily">Daily</option>
+            <option value="weekdays">Weekdays (Mon–Fri)</option>
+            <option value="weekly">Weekly</option>
+          </select>
+        </div>
+      </div>
       <div className="flex gap-2 justify-end pt-2">
         {onCancel && (
           <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>

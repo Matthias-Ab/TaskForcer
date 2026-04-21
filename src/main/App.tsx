@@ -15,15 +15,20 @@ import { CheckinDialog } from '@/components/CheckinDialog'
 import { LockoutDialog } from '@/components/LockoutDialog'
 import { Dialog } from '@/components/ui/Dialog'
 import { CreateTaskForm } from '@/components/CreateTaskForm'
-import { useTodayTasks } from '@/hooks/useTasks'
+import { useTaskContext } from '@/contexts/TaskContext'
+import { useTheme } from '@/contexts/ThemeContext'
 
 export function App() {
   const location = useLocation()
   const [showCreateTask, setShowCreateTask] = useState(false)
-  const { createTask } = useTodayTasks()
+  const { createTask } = useTaskContext()
+  const { theme } = useTheme()
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100 overflow-hidden">
+    <div
+      className="flex flex-col h-screen overflow-hidden"
+      style={{ background: 'var(--tf-bg)', color: 'var(--tf-text)' }}
+    >
       <TitleBar />
 
       <div className="flex flex-1 overflow-hidden">
@@ -44,11 +49,9 @@ export function App() {
         </main>
       </div>
 
-      {/* Global dialogs */}
       <CheckinDialog />
       <LockoutDialog />
 
-      {/* Create task modal from palette */}
       <Dialog
         open={showCreateTask}
         onClose={() => setShowCreateTask(false)}
@@ -63,15 +66,17 @@ export function App() {
         />
       </Dialog>
 
-      {/* Command palette */}
       <CommandPalette onCreateTask={() => setShowCreateTask(true)} />
 
-      {/* Toasts */}
       <Toaster
-        theme="dark"
+        theme={theme}
         position="bottom-right"
         toastOptions={{
-          style: { background: '#18181b', border: '1px solid #27272a', color: '#fafafa' },
+          style: {
+            background: 'var(--tf-bg-secondary)',
+            border: '1px solid var(--tf-border)',
+            color: 'var(--tf-text)',
+          },
         }}
       />
     </div>

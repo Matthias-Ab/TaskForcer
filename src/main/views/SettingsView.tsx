@@ -1,14 +1,16 @@
 import { motion } from 'framer-motion'
 import { useSettings } from '@/hooks/useSettings'
+import { useTheme } from '@/contexts/ThemeContext'
 import { pageTransition } from '@/lib/animations'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { ipc } from '@/lib/ipc'
 import { toast } from 'sonner'
-import { Download, Trash2, RefreshCw } from 'lucide-react'
+import { Download, Trash2, RefreshCw, Sun, Moon } from 'lucide-react'
 
 export function SettingsView() {
   const { settings, loading, setSetting } = useSettings()
+  const { theme, toggleTheme } = useTheme()
 
   if (loading) return null
 
@@ -45,11 +47,33 @@ export function SettingsView() {
       exit="exit"
       className="flex flex-col h-full overflow-hidden"
     >
-      <div className="px-6 py-4 border-b border-zinc-800/40 flex-shrink-0">
-        <h1 className="text-lg font-semibold text-zinc-100">Settings</h1>
+      <div className="px-6 py-4 border-b flex-shrink-0" style={{ borderColor: 'var(--tf-border)' }}>
+        <h1 className="text-lg font-semibold" style={{ color: 'var(--tf-text)' }}>Settings</h1>
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8">
+        {/* Appearance */}
+        <Section title="Appearance">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium" style={{ color: 'var(--tf-text)' }}>Theme</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--tf-text-muted)' }}>
+                Currently using {theme} mode
+              </p>
+            </div>
+            <button
+              onClick={toggleTheme}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-colors"
+              style={{ background: 'var(--tf-bg-tertiary)', borderColor: 'var(--tf-border)', color: 'var(--tf-text)' }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+            >
+              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+              {theme === 'dark' ? 'Switch to Light' : 'Switch to Dark'}
+            </button>
+          </div>
+        </Section>
+
         {/* Work hours */}
         <Section title="Work Hours">
           <div className="grid grid-cols-2 gap-4">
@@ -125,11 +149,11 @@ export function SettingsView() {
               <Download size={14} />
               Export JSON
             </Button>
-            <Button variant="ghost" size="sm" onClick={clearShameLog} className="text-red-500">
+            <Button variant="ghost" size="sm" onClick={clearShameLog} className="!text-red-500">
               <Trash2 size={14} />
               Clear Shame Log
             </Button>
-            <Button variant="ghost" size="sm" onClick={resetStreaks} className="text-amber-500">
+            <Button variant="ghost" size="sm" onClick={resetStreaks} className="!text-amber-500">
               <RefreshCw size={14} />
               Reset Streaks
             </Button>
@@ -143,7 +167,7 @@ export function SettingsView() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">{title}</h2>
+      <h2 className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--tf-text-muted)' }}>{title}</h2>
       {children}
     </div>
   )
@@ -153,12 +177,13 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
   return (
     <label className="flex items-center gap-3 cursor-pointer group">
       <div
-        className={`relative w-9 h-5 rounded-full transition-colors ${checked ? 'bg-indigo-600' : 'bg-zinc-700'}`}
+        className={`relative w-9 h-5 rounded-full transition-colors ${checked ? 'bg-indigo-600' : ''}`}
+        style={!checked ? { background: 'var(--tf-bg-tertiary)' } : {}}
         onClick={() => onChange(!checked)}
       >
         <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
       </div>
-      <span className="text-sm text-zinc-300 group-hover:text-zinc-100 transition-colors">{label}</span>
+      <span className="text-sm transition-colors" style={{ color: 'var(--tf-text-muted)' }}>{label}</span>
     </label>
   )
 }

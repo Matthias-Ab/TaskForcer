@@ -23,43 +23,34 @@ export function Dialog({ open, onClose, title, children, footer, size = 'md' }: 
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
         >
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={onClose}
-          />
-
-          {/* Dialog */}
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
           <motion.div
-            className={`relative z-10 rounded-2xl bg-zinc-900 border border-zinc-800/80 shadow-2xl ${
+            className={`relative z-10 rounded-2xl shadow-2xl border ${
               size === 'sm' ? 'w-full max-w-sm' :
               size === 'lg' ? 'w-full max-w-2xl' :
               'w-full max-w-md'
             }`}
+            style={{ background: 'var(--tf-dialog-bg)', borderColor: 'var(--tf-border)' }}
             variants={scaleIn}
             initial="hidden"
             animate="visible"
             exit="exit"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/60">
-              <h2 className="text-base font-semibold text-zinc-100">{title}</h2>
+            <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--tf-border)' }}>
+              <h2 className="text-base font-semibold" style={{ color: 'var(--tf-text)' }}>{title}</h2>
               <button
                 onClick={onClose}
-                className="rounded-lg p-1 hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="rounded-lg p-1 transition-colors"
+                style={{ color: 'var(--tf-text-muted)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--tf-bg-tertiary)')}
+                onMouseLeave={e => (e.currentTarget.style.background = '')}
               >
                 <X size={16} />
               </button>
             </div>
-
-            {/* Body */}
             <div className="px-6 py-4">{children}</div>
-
-            {/* Footer */}
             {footer && (
-              <div className="flex justify-end gap-2 px-6 pb-5">
-                {footer}
-              </div>
+              <div className="flex justify-end gap-2 px-6 pb-5">{footer}</div>
             )}
           </motion.div>
         </motion.div>
