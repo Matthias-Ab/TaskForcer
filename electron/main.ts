@@ -1,6 +1,5 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
-import { createRequire } from 'module'
 import path from 'path'
+import fs from 'fs'
 import { fileURLToPath } from 'url'
 import { initDb } from './db.js'
 import { registerTaskIpc } from './ipc/tasks.js'
@@ -13,15 +12,15 @@ import { initScheduler } from './scheduler.js'
 import { createTray, destroyTray } from './tray.js'
 import { createWidgetWindow, showWidget, updateWidgetTask, registerWidgetIpc } from './widget-window.js'
 
-const require = createRequire(import.meta.url)
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const { app, BrowserWindow, ipcMain, shell } = await import('electron')
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const isDev = process.env.NODE_ENV === 'development'
 
-let mainWindow: BrowserWindow | null = null
-let morningWindow: BrowserWindow | null = null
+let mainWindow: InstanceType<typeof BrowserWindow> | null = null
+let morningWindow: InstanceType<typeof BrowserWindow> | null = null
 
-function createMainWindow(): BrowserWindow {
+function createMainWindow(): InstanceType<typeof BrowserWindow> {
   mainWindow = new BrowserWindow({
     width: 1100,
     height: 720,
@@ -62,7 +61,7 @@ function createMainWindow(): BrowserWindow {
   return mainWindow
 }
 
-function createMorningWindow(): BrowserWindow {
+function createMorningWindow(): InstanceType<typeof BrowserWindow> {
   morningWindow = new BrowserWindow({
     width: 700,
     height: 550,
@@ -90,12 +89,17 @@ function createMorningWindow(): BrowserWindow {
 
 function checkMorningPopup(): void {
   const today = new Date().toISOString().split('T')[0]
-  const ElectronStore = require('electron-store')
-  const store = new ElectronStore({ name: 'taskforcer-state' })
-  const lastShown = store.get('morning_popup_date', '')
+  const stateDir = path.join(app.getPath('home'), '.taskforcer')
+  const statePath = path.join(stateDir, 'state.json')
 
-  if (lastShown !== today) {
-    store.set('morning_popup_date', today)
+  if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true })
+
+  let state: Record<string, string> = {}
+  try { state = JSON.parse(fs.readFileSync(statePath, 'utf-8')) } catch { /* first run */ }
+
+  if (state.morning_popup_date !== today) {
+    state.morning_popup_date = today
+    fs.writeFileSync(statePath, JSON.stringify(state), 'utf-8')
     setTimeout(() => {
       if (morningWindow && !morningWindow.isDestroyed()) morningWindow.show()
     }, 1500)

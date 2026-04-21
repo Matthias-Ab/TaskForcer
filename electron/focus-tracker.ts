@@ -1,6 +1,7 @@
-import { BrowserWindow, ipcMain } from 'electron'
 import { getDb, getSetting } from './db.js'
 import { addShameEntry } from './forcing.js'
+
+const { BrowserWindow, ipcMain } = await import('electron')
 
 let pollInterval: ReturnType<typeof setInterval> | null = null
 let activeSessionId: string | null = null
@@ -47,7 +48,7 @@ async function doPoll(): Promise<void> {
     const globalDistractions: string[] = JSON.parse(getSetting('distraction_apps') || '[]')
     const allDistractions = [...distractionApps, ...globalDistractions]
 
-    const isDistraction = allDistractions.some(app => appName.toLowerCase().includes(app.toLowerCase()))
+    const isDistraction = allDistractions.some(a => appName.toLowerCase().includes(a.toLowerCase()))
     const secondsElapsed = POLL_MS / 1000
 
     if (isDistraction) {

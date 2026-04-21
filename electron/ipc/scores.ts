@@ -1,5 +1,6 @@
-import { ipcMain } from 'electron'
 import { getDb } from '../db.js'
+
+const { ipcMain } = await import('electron')
 
 export interface DailyScore {
   date: string

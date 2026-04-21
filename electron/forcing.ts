@@ -1,7 +1,8 @@
-import { BrowserWindow, ipcMain, powerMonitor, Notification, app } from 'electron'
 import { getDb, getSetting } from './db.js'
 import { calculateTodayScore } from './ipc/scores.js'
 import { randomUUID } from 'crypto'
+
+const { BrowserWindow, ipcMain, powerMonitor, Notification, app } = await import('electron')
 
 let checkinInterval: ReturnType<typeof setInterval> | null = null
 let idleCheckInterval: ReturnType<typeof setInterval> | null = null
@@ -74,7 +75,7 @@ function escalateIdleNag(idleSeconds: number): void {
   }
 }
 
-export function setupEndOfDayGuard(win: BrowserWindow): void {
+export function setupEndOfDayGuard(win: InstanceType<typeof BrowserWindow>): void {
   app.on('before-quit', (e) => {
     const hour = new Date().getHours()
     const threshold = parseInt(getSetting('lockout_threshold') || '50', 10)

@@ -1,5 +1,6 @@
-import { ipcMain } from 'electron'
 import { getSetting, setSetting, getDb } from '../db.js'
+
+const { ipcMain } = await import('electron')
 
 export function registerSettingsIpc(): void {
   ipcMain.handle('settings:get', (_e, key: string) => getSetting(key))

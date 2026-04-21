@@ -1,7 +1,8 @@
-import { Tray, Menu, BrowserWindow, nativeImage, app } from 'electron'
 import { calculateTodayScore } from './ipc/scores.js'
 
-let tray: Tray | null = null
+const { Tray, Menu, BrowserWindow, nativeImage, app } = await import('electron')
+
+let tray: InstanceType<typeof Tray> | null = null
 let scoreUpdateInterval: ReturnType<typeof setInterval> | null = null
 
 function getTrayIcon(score: number): Electron.NativeImage {
@@ -15,7 +16,7 @@ function getTrayIcon(score: number): Electron.NativeImage {
   return nativeImage.createFromBuffer(buffer, { width: size, height: size })
 }
 
-export function createTray(mainWindow: BrowserWindow): Tray {
+export function createTray(mainWindow: InstanceType<typeof BrowserWindow>): InstanceType<typeof Tray> {
   tray = new Tray(getTrayIcon(0))
   tray.setToolTip('TaskForcer')
   updateTray(mainWindow)
@@ -25,7 +26,7 @@ export function createTray(mainWindow: BrowserWindow): Tray {
   return tray
 }
 
-function updateTray(mainWindow: BrowserWindow): void {
+function updateTray(mainWindow: InstanceType<typeof BrowserWindow>): void {
   if (!tray) return
   let score = 0
   let scoreLabel = 'No data yet'

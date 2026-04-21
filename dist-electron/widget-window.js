@@ -1,12 +1,20 @@
-import { BrowserWindow, ipcMain, screen } from 'electron';
-import path from 'path';
-import { fileURLToPath } from 'url';
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createWidgetWindow = createWidgetWindow;
+exports.showWidget = showWidget;
+exports.hideWidget = hideWidget;
+exports.updateWidgetTask = updateWidgetTask;
+exports.registerWidgetIpc = registerWidgetIpc;
+const electron_1 = require("electron");
+const path_1 = __importDefault(require("path"));
 let widgetWin = null;
-export function createWidgetWindow(isDev) {
-    const display = screen.getPrimaryDisplay();
+function createWidgetWindow(isDev) {
+    const display = electron_1.screen.getPrimaryDisplay();
     const { width, height } = display.workAreaSize;
-    widgetWin = new BrowserWindow({
+    widgetWin = new electron_1.BrowserWindow({
         width: 320,
         height: 90,
         x: width - 340,
@@ -19,7 +27,7 @@ export function createWidgetWindow(isDev) {
         show: false,
         hasShadow: true,
         webPreferences: {
-            preload: path.join(__dirname, 'preload.js'),
+            preload: path_1.default.join(__dirname, 'preload.js'),
             contextIsolation: true,
             nodeIntegration: false,
         },
@@ -28,26 +36,26 @@ export function createWidgetWindow(isDev) {
         widgetWin.loadURL('http://localhost:5173/widget.html');
     }
     else {
-        widgetWin.loadFile(path.join(__dirname, '../dist/widget.html'));
+        widgetWin.loadFile(path_1.default.join(__dirname, '../dist/widget.html'));
     }
     widgetWin.on('closed', () => { widgetWin = null; });
     return widgetWin;
 }
-export function showWidget() {
+function showWidget() {
     if (widgetWin && !widgetWin.isDestroyed())
         widgetWin.show();
 }
-export function hideWidget() {
+function hideWidget() {
     if (widgetWin && !widgetWin.isDestroyed())
         widgetWin.hide();
 }
-export function updateWidgetTask(taskId, taskTitle) {
+function updateWidgetTask(taskId, taskTitle) {
     if (widgetWin && !widgetWin.isDestroyed()) {
         widgetWin.webContents.send('widget:update-task', { taskId, taskTitle });
     }
 }
-export function registerWidgetIpc() {
-    ipcMain.handle('widget:minimize-temporarily', () => {
+function registerWidgetIpc() {
+    electron_1.ipcMain.handle('widget:minimize-temporarily', () => {
         if (widgetWin && !widgetWin.isDestroyed()) {
             widgetWin.hide();
             setTimeout(() => { if (widgetWin && !widgetWin.isDestroyed())
@@ -55,7 +63,7 @@ export function registerWidgetIpc() {
         }
         return { ok: true };
     });
-    ipcMain.handle('widget:set-position', (_e, x, y) => {
+    electron_1.ipcMain.handle('widget:set-position', (_e, x, y) => {
         if (widgetWin && !widgetWin.isDestroyed())
             widgetWin.setPosition(Math.round(x), Math.round(y));
         return { ok: true };

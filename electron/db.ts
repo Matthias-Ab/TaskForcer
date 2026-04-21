@@ -1,7 +1,8 @@
-import { app, safeStorage } from 'electron'
 import { createRequire } from 'module'
 import path from 'path'
 import fs from 'fs'
+
+const { app, safeStorage } = await import('electron')
 
 const require = createRequire(import.meta.url)
 // eslint-disable-next-line @typescript-eslint/no-require-imports

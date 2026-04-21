@@ -1,12 +1,12 @@
-import { BrowserWindow, ipcMain, screen } from 'electron'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+const { BrowserWindow, ipcMain, screen } = await import('electron')
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+let widgetWin: InstanceType<typeof BrowserWindow> | null = null
 
-let widgetWin: BrowserWindow | null = null
-
-export function createWidgetWindow(isDev: boolean): BrowserWindow {
+export function createWidgetWindow(isDev: boolean): InstanceType<typeof BrowserWindow> {
   const display = screen.getPrimaryDisplay()
   const { width, height } = display.workAreaSize
 
