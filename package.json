@@ -18,9 +18,11 @@
     "dist:mac": "npm run build && electron-builder --mac",
     "typecheck": "tsc --noEmit"
   },
+  "optionalDependencies": {
+    "active-win": "^8.2.1"
+  },
   "dependencies": {
     "@types/react-window": "^1.8.8",
-    "active-win": "^8.2.1",
     "auto-launch": "^5.0.6",
     "better-sqlite3": "^12.9.0",
     "cmdk": "^1.1.1",
