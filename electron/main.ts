@@ -1,22 +1,25 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { createRequire } from 'module'
 import path from 'path'
-import { initDb } from './db'
-import { registerTaskIpc } from './ipc/tasks'
-import { registerShameIpc } from './ipc/shame'
-import { registerScoresIpc } from './ipc/scores'
-import { registerSettingsIpc } from './ipc/settings'
-import { registerForcingIpc, startIdleDetection, setupEndOfDayGuard } from './forcing'
-import { registerFocusIpc } from './focus-tracker'
-import { initScheduler } from './scheduler'
-import { createTray, destroyTray } from './tray'
-import { createWidgetWindow, showWidget, updateWidgetTask, registerWidgetIpc } from './widget-window'
-import AutoLaunch from 'auto-launch'
+import { fileURLToPath } from 'url'
+import { initDb } from './db.js'
+import { registerTaskIpc } from './ipc/tasks.js'
+import { registerShameIpc } from './ipc/shame.js'
+import { registerScoresIpc, calculateTodayScore } from './ipc/scores.js'
+import { registerSettingsIpc } from './ipc/settings.js'
+import { registerForcingIpc, startIdleDetection, setupEndOfDayGuard } from './forcing.js'
+import { registerFocusIpc } from './focus-tracker.js'
+import { initScheduler } from './scheduler.js'
+import { createTray, destroyTray } from './tray.js'
+import { createWidgetWindow, showWidget, updateWidgetTask, registerWidgetIpc } from './widget-window.js'
+
+const require = createRequire(import.meta.url)
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const isDev = process.env.NODE_ENV === 'development'
 
 let mainWindow: BrowserWindow | null = null
 let morningWindow: BrowserWindow | null = null
-let autoLauncher: AutoLaunch | null = null
 
 function createMainWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
@@ -48,7 +51,6 @@ function createMainWindow(): BrowserWindow {
 
   mainWindow.on('closed', () => { mainWindow = null })
 
-  // Window control IPC
   ipcMain.handle('window:minimize', () => mainWindow?.minimize())
   ipcMain.handle('window:maximize', () => {
     if (mainWindow?.isMaximized()) mainWindow.restore()
@@ -88,8 +90,8 @@ function createMorningWindow(): BrowserWindow {
 
 function checkMorningPopup(): void {
   const today = new Date().toISOString().split('T')[0]
-  const Store = require('electron-store')
-  const store = new Store({ name: 'taskforcer-state' })
+  const ElectronStore = require('electron-store')
+  const store = new ElectronStore({ name: 'taskforcer-state' })
   const lastShown = store.get('morning_popup_date', '')
 
   if (lastShown !== today) {
@@ -123,24 +125,15 @@ function registerMainIpc(): void {
     }
   })
 
-  ipcMain.handle('scoring:invalidate', async () => {
-    const { calculateTodayScore } = await import('./ipc/scores')
+  ipcMain.handle('scoring:invalidate', () => {
     try { calculateTodayScore() } catch { /* noop */ }
     return { ok: true }
-  })
-}
-
-async function setupAutoLaunch(): Promise<void> {
-  autoLauncher = new AutoLaunch({
-    name: 'TaskForcer',
-    path: app.getPath('exe'),
   })
 }
 
 app.whenReady().then(async () => {
   initDb()
 
-  // Register all IPC handlers
   registerTaskIpc()
   registerShameIpc()
   registerScoresIpc()
@@ -150,22 +143,17 @@ app.whenReady().then(async () => {
   registerFocusIpc()
   registerMainIpc()
 
-  // Initialize features
   initScheduler()
   startIdleDetection()
 
-  // Create windows (morning preloaded hidden)
   const win = createMainWindow()
   createMorningWindow()
   createWidgetWindow(isDev)
 
-  // Tray
-  mainWindow!.once('ready-to-show', () => {
+  win.once('ready-to-show', () => {
     createTray(win)
     checkMorningPopup()
   })
-
-  await setupAutoLaunch()
 
   app.on('activate', () => {
     if (!mainWindow) createMainWindow()
@@ -180,6 +168,4 @@ app.on('window-all-closed', () => {
   }
 })
 
-app.on('will-quit', () => {
-  destroyTray()
-})
+app.on('will-quit', () => destroyTray())

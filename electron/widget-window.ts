@@ -1,20 +1,20 @@
 import { BrowserWindow, ipcMain, screen } from 'electron'
 import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 let widgetWin: BrowserWindow | null = null
-
-const WIDGET_WIDTH = 320
-const WIDGET_HEIGHT = 90
 
 export function createWidgetWindow(isDev: boolean): BrowserWindow {
   const display = screen.getPrimaryDisplay()
   const { width, height } = display.workAreaSize
 
   widgetWin = new BrowserWindow({
-    width: WIDGET_WIDTH,
-    height: WIDGET_HEIGHT,
-    x: width - WIDGET_WIDTH - 20,
-    y: height - WIDGET_HEIGHT - 60,
+    width: 320,
+    height: 90,
+    x: width - 340,
+    y: height - 110,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -36,7 +36,6 @@ export function createWidgetWindow(isDev: boolean): BrowserWindow {
   }
 
   widgetWin.on('closed', () => { widgetWin = null })
-
   return widgetWin
 }
 
@@ -58,9 +57,7 @@ export function registerWidgetIpc(): void {
   ipcMain.handle('widget:minimize-temporarily', () => {
     if (widgetWin && !widgetWin.isDestroyed()) {
       widgetWin.hide()
-      setTimeout(() => {
-        if (widgetWin && !widgetWin.isDestroyed()) widgetWin.show()
-      }, 30 * 1000)
+      setTimeout(() => { if (widgetWin && !widgetWin.isDestroyed()) widgetWin.show() }, 30 * 1000)
     }
     return { ok: true }
   })

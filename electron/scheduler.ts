@@ -1,23 +1,23 @@
-import schedule from 'node-schedule'
-import { getDb, getSetting } from './db'
-import { addShameEntry } from './forcing'
+import { createRequire } from 'module'
+import { getDb, getSetting } from './db.js'
+import { addShameEntry } from './forcing.js'
 import { BrowserWindow, Notification } from 'electron'
 import { randomUUID } from 'crypto'
-import { calculateTodayScore } from './ipc/scores'
+import { calculateTodayScore } from './ipc/scores.js'
+
+const require = createRequire(import.meta.url)
+const schedule = require('node-schedule') as typeof import('node-schedule')
 
 export function initScheduler(): void {
-  // Midnight: expand recurrence rules, check for missed tasks
   schedule.scheduleJob('0 0 * * *', () => {
     expandRecurrences()
     checkMissedTasks()
   })
 
-  // Every 5 min: recalculate score
   schedule.scheduleJob('*/5 * * * *', () => {
     try { calculateTodayScore() } catch { /* noop */ }
   })
 
-  // Task due notifications (15 min before)
   schedule.scheduleJob('* * * * *', () => {
     checkUpcomingNotifications()
   })
@@ -38,7 +38,6 @@ function expandRecurrences(): void {
   tomorrow.setHours(9, 0, 0, 0)
 
   for (const task of recurring) {
-    // Simple daily recurrence expansion
     if (task.recurrence_rule === 'daily') {
       const exists = db.prepare(
         "SELECT 1 FROM tasks WHERE parent_task_id = ? AND date(due_at/1000,'unixepoch') = date(?/1000,'unixepoch')"
@@ -71,17 +70,11 @@ function checkMissedTasks(): void {
   yEnd.setHours(23, 59, 59, 999)
 
   const missed = db.prepare(`
-    SELECT * FROM tasks
-    WHERE status NOT IN ('completed', 'cancelled')
-      AND due_at BETWEEN ? AND ?
+    SELECT * FROM tasks WHERE status NOT IN ('completed','cancelled') AND due_at BETWEEN ? AND ?
   `).all(yStart.getTime(), yEnd.getTime()) as { id: string; title: string }[]
 
   for (const task of missed) {
-    addShameEntry({
-      type: 'missed_task',
-      task_id: task.id,
-      message: `Missed task: "${task.title}"`,
-    })
+    addShameEntry({ type: 'missed_task', task_id: task.id, message: `Missed task: "${task.title}"` })
   }
 }
 
@@ -92,17 +85,12 @@ function checkUpcomingNotifications(): void {
   const in16 = now + 16 * 60 * 1000
 
   const upcoming = db.prepare(`
-    SELECT * FROM tasks
-    WHERE status NOT IN ('completed', 'cancelled')
-      AND due_at BETWEEN ? AND ?
+    SELECT * FROM tasks WHERE status NOT IN ('completed','cancelled') AND due_at BETWEEN ? AND ?
   `).all(in15, in16) as { id: string; title: string }[]
 
   for (const task of upcoming) {
     if (Notification.isSupported()) {
-      new Notification({
-        title: 'Task due in 15 minutes',
-        body: task.title,
-      }).show()
+      new Notification({ title: 'Task due in 15 minutes', body: task.title }).show()
     }
   }
 }

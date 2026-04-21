@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { getDb } from '../db'
+import { getDb } from '../db.js'
 import { randomUUID } from 'crypto'
 
 export interface ShameEntry {
@@ -12,10 +12,9 @@ export interface ShameEntry {
 
 export function registerShameIpc(): void {
   ipcMain.handle('shame:list', (_e, limit = 200, offset = 0) => {
-    const rows = getDb().prepare(
+    return getDb().prepare(
       'SELECT * FROM shame_log ORDER BY created_at DESC LIMIT ? OFFSET ?'
     ).all(limit, offset) as ShameEntry[]
-    return rows
   })
 
   ipcMain.handle('shame:add', (_e, entry: Omit<ShameEntry, 'id' | 'created_at'>) => {

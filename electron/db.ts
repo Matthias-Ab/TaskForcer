@@ -1,13 +1,17 @@
-import Database from 'better-sqlite3'
 import { app, safeStorage } from 'electron'
+import { createRequire } from 'module'
 import path from 'path'
 import fs from 'fs'
 
+const require = createRequire(import.meta.url)
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const Database = require('better-sqlite3') as typeof import('better-sqlite3')
+
 let DB_DIR: string
 let DB_PATH: string
-let db: Database.Database
+let db: import('better-sqlite3').Database
 
-export function getDb(): Database.Database {
+export function getDb() {
   if (!db) throw new Error('DB not initialized')
   return db
 }
@@ -25,7 +29,7 @@ export function initDb(): void {
   migrate(db)
 }
 
-function migrate(db: Database.Database): void {
+function migrate(db: import('better-sqlite3').Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS tasks (
       id TEXT PRIMARY KEY,
@@ -83,7 +87,6 @@ function migrate(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_daily_scores_date ON daily_scores(date DESC);
   `)
 
-  // seed default settings
   const defaults: Record<string, string> = {
     work_start: '09:00',
     work_end: '18:00',

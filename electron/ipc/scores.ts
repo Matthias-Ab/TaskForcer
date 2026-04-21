@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { getDb } from '../db'
+import { getDb } from '../db.js'
 
 export interface DailyScore {
   date: string
@@ -28,22 +28,18 @@ export function calculateTodayScore(): DailyScore {
   const completedCritical = critical.filter(t => t.status === 'completed')
   const completedAll = allTasks.filter(t => t.status === 'completed')
 
-  const totalEstimate = allTasks.reduce((s, t) => s + (t.estimate_minutes || 30), 0) * 60 * 1000
-
   const sessions = db.prepare(`
     SELECT SUM(active_seconds) as active FROM sessions
     WHERE started_at BETWEEN ? AND ?
   `).get(todayStart.getTime(), todayEnd.getTime()) as { active: number }
 
   const activeSeconds = sessions?.active || 0
-  const focusPct = totalEstimate > 0
-    ? Math.min(1, (activeSeconds * 1000) / totalEstimate)
-    : 0
+  const totalEstimateSec = allTasks.reduce((s, t) => s + (t.estimate_minutes || 30), 0) * 60
+  const focusPct = totalEstimateSec > 0 ? Math.min(1, activeSeconds / totalEstimateSec) : 0
 
   const completionPct = allTasks.length > 0 ? completedAll.length / allTasks.length : 0
   const criticalPct = critical.length > 0 ? completedCritical.length / critical.length : 1
 
-  // penalties
   const checkinPenalties = (db.prepare(
     "SELECT COUNT(*) as c FROM shame_log WHERE type='skipped_checkin' AND date(created_at/1000,'unixepoch')=?"
   ).get(today) as { c: number })?.c || 0
@@ -54,15 +50,11 @@ export function calculateTodayScore(): DailyScore {
     "SELECT COUNT(*) as c FROM shame_log WHERE type='missed_task' AND date(created_at/1000,'unixepoch')=?"
   ).get(today) as { c: number })?.c || 0
 
-  const rawScore = (
-    0.5 * criticalPct +
-    0.3 * completionPct +
-    0.2 * focusPct
-  ) * 100 - checkinPenalties * 5 - distractionPenalties * 3 - missedPenalties * 10
+  const rawScore = (0.5 * criticalPct + 0.3 * completionPct + 0.2 * focusPct) * 100
+    - checkinPenalties * 5 - distractionPenalties * 3 - missedPenalties * 10
 
   const score = Math.max(0, Math.min(100, rawScore))
 
-  // streak
   const yesterday = new Date(todayStart)
   yesterday.setDate(yesterday.getDate() - 1)
   const yesterdayStr = yesterday.toISOString().split('T')[0]
@@ -83,10 +75,9 @@ export function registerScoresIpc(): void {
   ipcMain.handle('scores:today', () => calculateTodayScore())
 
   ipcMain.handle('scores:history', (_e, days = 30) => {
-    const rows = getDb().prepare(
+    return (getDb().prepare(
       'SELECT * FROM daily_scores ORDER BY date DESC LIMIT ?'
-    ).all(days) as DailyScore[]
-    return rows.reverse()
+    ).all(days) as DailyScore[]).reverse()
   })
 
   ipcMain.handle('scores:streak', () => {

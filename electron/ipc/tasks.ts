@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { getDb } from '../db'
+import { getDb } from '../db.js'
 import { randomUUID } from 'crypto'
 
 export interface Task {
@@ -131,7 +131,6 @@ export function registerTaskIpc(): void {
 
   ipcMain.handle('tasks:start', (_e, id: string) => {
     const db = getDb()
-    // End any other in-progress sessions
     db.prepare(`UPDATE tasks SET status = 'pending' WHERE status = 'in_progress' AND id != ?`).run(id)
     db.prepare(`UPDATE tasks SET status = 'in_progress' WHERE id = ?`).run(id)
 
@@ -143,9 +142,8 @@ export function registerTaskIpc(): void {
   })
 
   ipcMain.handle('tasks:snooze', (_e, id: string, minutes: number) => {
-    const db = getDb()
     const snoozeUntil = Date.now() + minutes * 60 * 1000
-    db.prepare(`UPDATE tasks SET status = 'snoozed', due_at = ? WHERE id = ?`).run(snoozeUntil, id)
+    getDb().prepare(`UPDATE tasks SET status = 'snoozed', due_at = ? WHERE id = ?`).run(snoozeUntil, id)
     return { ok: true }
   })
 

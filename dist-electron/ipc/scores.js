@@ -1,11 +1,7 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.calculateTodayScore = calculateTodayScore;
-exports.registerScoresIpc = registerScoresIpc;
-const electron_1 = require("electron");
-const db_1 = require("../db");
-function calculateTodayScore() {
-    const db = (0, db_1.getDb)();
+import { ipcMain } from 'electron';
+import { getDb } from '../db.js';
+export function calculateTodayScore() {
+    const db = getDb();
     const today = new Date().toISOString().split('T')[0];
     const todayStart = new Date(today);
     todayStart.setHours(0, 0, 0, 0);
@@ -19,26 +15,21 @@ function calculateTodayScore() {
     const critical = allTasks.filter(t => t.priority === 'critical');
     const completedCritical = critical.filter(t => t.status === 'completed');
     const completedAll = allTasks.filter(t => t.status === 'completed');
-    const totalEstimate = allTasks.reduce((s, t) => s + (t.estimate_minutes || 30), 0) * 60 * 1000;
     const sessions = db.prepare(`
     SELECT SUM(active_seconds) as active FROM sessions
     WHERE started_at BETWEEN ? AND ?
   `).get(todayStart.getTime(), todayEnd.getTime());
     const activeSeconds = sessions?.active || 0;
-    const focusPct = totalEstimate > 0
-        ? Math.min(1, (activeSeconds * 1000) / totalEstimate)
-        : 0;
+    const totalEstimateSec = allTasks.reduce((s, t) => s + (t.estimate_minutes || 30), 0) * 60;
+    const focusPct = totalEstimateSec > 0 ? Math.min(1, activeSeconds / totalEstimateSec) : 0;
     const completionPct = allTasks.length > 0 ? completedAll.length / allTasks.length : 0;
     const criticalPct = critical.length > 0 ? completedCritical.length / critical.length : 1;
-    // penalties
     const checkinPenalties = db.prepare("SELECT COUNT(*) as c FROM shame_log WHERE type='skipped_checkin' AND date(created_at/1000,'unixepoch')=?").get(today)?.c || 0;
     const distractionPenalties = db.prepare("SELECT COUNT(*) as c FROM shame_log WHERE type='distraction' AND date(created_at/1000,'unixepoch')=?").get(today)?.c || 0;
     const missedPenalties = db.prepare("SELECT COUNT(*) as c FROM shame_log WHERE type='missed_task' AND date(created_at/1000,'unixepoch')=?").get(today)?.c || 0;
-    const rawScore = (0.5 * criticalPct +
-        0.3 * completionPct +
-        0.2 * focusPct) * 100 - checkinPenalties * 5 - distractionPenalties * 3 - missedPenalties * 10;
+    const rawScore = (0.5 * criticalPct + 0.3 * completionPct + 0.2 * focusPct) * 100
+        - checkinPenalties * 5 - distractionPenalties * 3 - missedPenalties * 10;
     const score = Math.max(0, Math.min(100, rawScore));
-    // streak
     const yesterday = new Date(todayStart);
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().split('T')[0];
@@ -50,14 +41,13 @@ function calculateTodayScore() {
   `).run(today, completionPct * 100, focusPct * 100, score, streakDay);
     return { date: today, completion_pct: completionPct * 100, focus_pct: focusPct * 100, score, streak_day: streakDay };
 }
-function registerScoresIpc() {
-    electron_1.ipcMain.handle('scores:today', () => calculateTodayScore());
-    electron_1.ipcMain.handle('scores:history', (_e, days = 30) => {
-        const rows = (0, db_1.getDb)().prepare('SELECT * FROM daily_scores ORDER BY date DESC LIMIT ?').all(days);
-        return rows.reverse();
+export function registerScoresIpc() {
+    ipcMain.handle('scores:today', () => calculateTodayScore());
+    ipcMain.handle('scores:history', (_e, days = 30) => {
+        return getDb().prepare('SELECT * FROM daily_scores ORDER BY date DESC LIMIT ?').all(days).reverse();
     });
-    electron_1.ipcMain.handle('scores:streak', () => {
-        const row = (0, db_1.getDb)().prepare('SELECT streak_day FROM daily_scores ORDER BY date DESC LIMIT 1').get();
+    ipcMain.handle('scores:streak', () => {
+        const row = getDb().prepare('SELECT streak_day FROM daily_scores ORDER BY date DESC LIMIT 1').get();
         return row?.streak_day || 0;
     });
 }
