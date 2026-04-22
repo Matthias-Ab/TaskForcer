@@ -5,9 +5,10 @@ import { useNavigate } from 'react-router-dom'
 import { scaleIn } from '@/lib/animations'
 import {
   CheckSquare2, CalendarDays, Clock, BarChart2, Skull, Settings,
-  Plus, Play, Search
+  Plus, Play, Search, Bookmark
 } from 'lucide-react'
 import { useTaskContext } from '@/contexts/TaskContext'
+import { useTemplates } from '@/hooks/useTemplates'
 
 interface CommandPaletteProps {
   onCreateTask?: () => void
@@ -16,7 +17,8 @@ interface CommandPaletteProps {
 export function CommandPalette({ onCreateTask }: CommandPaletteProps) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
-  const { tasks, startTask } = useTaskContext()
+  const { tasks, startTask, createTask } = useTaskContext()
+  const { templates } = useTemplates()
 
   const pendingTasks = tasks.filter(t => t.status === 'pending' || t.status === 'in_progress')
 
@@ -145,6 +147,41 @@ export function CommandPalette({ onCreateTask }: CommandPaletteProps) {
                           task.priority === 'medium' ? 'text-amber-400' : ''
                         }`} style={task.priority === 'low' ? { color: 'var(--tf-text-faint)' } : {}}>
                           {task.priority}
+                        </span>
+                      </Command.Item>
+                    ))}
+                  </Command.Group>
+                )}
+
+                {templates.length > 0 && (
+                  <Command.Group heading="Spawn from Template">
+                    {templates.map(tmpl => (
+                      <Command.Item
+                        key={tmpl.id}
+                        value={`template ${tmpl.name} ${tmpl.data.title}`}
+                        onSelect={() => runCommand(() => createTask({
+                          title: tmpl.data.title,
+                          description: tmpl.data.description,
+                          priority: tmpl.data.priority,
+                          estimate_minutes: tmpl.data.estimate_minutes,
+                          tags: tmpl.data.tags,
+                          recurrence_rule: tmpl.data.recurrence_rule,
+                        }))}
+                        className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm cursor-pointer transition-colors"
+                        style={{ color: 'var(--tf-text)' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--tf-bg-tertiary)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = '')}
+                      >
+                        <Bookmark size={14} className="text-indigo-400" />
+                        <div className="flex-1 min-w-0">
+                          <span className="truncate block">{tmpl.name}</span>
+                          <span className="text-[10px] truncate block" style={{ color: 'var(--tf-text-faint)' }}>{tmpl.data.title}</span>
+                        </div>
+                        <span className={`ml-auto text-[10px] ${
+                          tmpl.data.priority === 'critical' ? 'text-red-400' :
+                          tmpl.data.priority === 'medium' ? 'text-amber-400' : ''
+                        }`} style={tmpl.data.priority === 'low' ? { color: 'var(--tf-text-faint)' } : {}}>
+                          {tmpl.data.priority}
                         </span>
                       </Command.Item>
                     ))}

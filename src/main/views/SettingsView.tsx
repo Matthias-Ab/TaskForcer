@@ -142,6 +142,17 @@ export function SettingsView() {
           </div>
         </Section>
 
+        {/* Personality */}
+        <Section title="Personality">
+          <div className="space-y-4">
+            <Toggle
+              label="🔥 Roast mode — shame log entries written in sarcastic tone"
+              checked={settings.roast_mode === 'true'}
+              onChange={v => setSetting('roast_mode', v ? 'true' : 'false')}
+            />
+          </div>
+        </Section>
+
         {/* Data */}
         <Section title="Data">
           <div className="flex flex-wrap gap-3">

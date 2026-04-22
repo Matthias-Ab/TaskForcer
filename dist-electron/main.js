@@ -14,6 +14,7 @@ const tasks_1 = require("./ipc/tasks");
 const shame_1 = require("./ipc/shame");
 const scores_1 = require("./ipc/scores");
 const settings_1 = require("./ipc/settings");
+const templates_1 = require("./ipc/templates");
 const forcing_1 = require("./forcing");
 const focus_tracker_1 = require("./focus-tracker");
 const scheduler_1 = require("./scheduler");
@@ -153,6 +154,7 @@ electron_1.app.whenReady().then(async () => {
     (0, shame_1.registerShameIpc)();
     (0, scores_1.registerScoresIpc)();
     (0, settings_1.registerSettingsIpc)();
+    (0, templates_1.registerTemplatesIpc)();
     (0, forcing_1.registerForcingIpc)();
     (0, widget_window_1.registerWidgetIpc)();
     (0, focus_tracker_1.registerFocusIpc)();

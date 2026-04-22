@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTaskContext } from '@/contexts/TaskContext'
+import { useTemplates } from '@/hooks/useTemplates'
 import { TaskCard } from '@/components/TaskCard'
 import { CreateTaskForm } from '@/components/CreateTaskForm'
 import { EditTaskForm } from '@/components/EditTaskForm'
@@ -9,7 +10,7 @@ import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { Task } from '@/hooks/useTasks'
 import { pageTransition, listItem } from '@/lib/animations'
-import { CheckSquare2, AlertTriangle, Circle, CheckCheck, Trash2, ChevronDown } from 'lucide-react'
+import { CheckSquare2, AlertTriangle, Circle, CheckCheck, Trash2, ChevronDown, Siren, ChevronRight } from 'lucide-react'
 
 const PRIORITY_OPTIONS: { label: string; value: Task['priority'] }[] = [
   { label: 'Critical', value: 'critical' },
@@ -24,6 +25,8 @@ export function TodayView() {
     updateTask, deleteTasks, completeTasks, updateTasksPriority,
   } = useTaskContext()
 
+  const { saveTemplate: _saveTemplate } = useTemplates()
+  const saveTemplate = (task: Task, name: string) => _saveTemplate(name, task)
   const [showCreate, setShowCreate] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -56,6 +59,7 @@ export function TodayView() {
   }
 
   const activeTasks = tasks.filter(t => t.status !== 'completed')
+  const overdueTasks = activeTasks.filter(t => t.due_at && t.due_at < Date.now())
   const critical = activeTasks.filter(t => t.priority === 'critical')
   const medium = activeTasks.filter(t => t.priority === 'medium')
   const low = activeTasks.filter(t => t.priority === 'low')
@@ -145,6 +149,26 @@ export function TodayView() {
         )}
       </AnimatePresence>
 
+      {/* Rescue Mission banner */}
+      <AnimatePresence>
+        {overdueTasks.length > 0 && !selectionMode && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden flex-shrink-0"
+          >
+            <RescueBanner
+              overdue={overdueTasks}
+              onTriage={(ids) => {
+                setSelectedIds(new Set(ids))
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
         {loading ? (
@@ -161,26 +185,26 @@ export function TodayView() {
               label="Critical" icon={<AlertTriangle size={13} className="text-red-500" />}
               tasks={critical} selectedIds={selectedIds} selectionMode={selectionMode}
               onSelect={toggleSelect} onComplete={completeTask} onStart={startTask}
-              onSnooze={snoozeTask} onDelete={deleteTask} onEdit={setEditingTask}
+              onSnooze={snoozeTask} onDelete={deleteTask} onEdit={setEditingTask} onSaveTemplate={saveTemplate}
             />
             <TaskGroup
               label="Medium" icon={<Circle size={13} className="text-amber-400" />}
               tasks={medium} selectedIds={selectedIds} selectionMode={selectionMode}
               onSelect={toggleSelect} onComplete={completeTask} onStart={startTask}
-              onSnooze={snoozeTask} onDelete={deleteTask} onEdit={setEditingTask}
+              onSnooze={snoozeTask} onDelete={deleteTask} onEdit={setEditingTask} onSaveTemplate={saveTemplate}
             />
             <TaskGroup
               label="Low Priority" icon={<Circle size={13} style={{ color: 'var(--tf-text-faint)' }} />}
               tasks={low} selectedIds={selectedIds} selectionMode={selectionMode}
               onSelect={toggleSelect} onComplete={completeTask} onStart={startTask}
-              onSnooze={snoozeTask} onDelete={deleteTask} onEdit={setEditingTask}
+              onSnooze={snoozeTask} onDelete={deleteTask} onEdit={setEditingTask} onSaveTemplate={saveTemplate}
             />
             {completed.length > 0 && (
               <TaskGroup
                 label="Completed" icon={<CheckSquare2 size={13} className="text-emerald-500" />}
                 tasks={completed} selectedIds={selectedIds} selectionMode={selectionMode}
                 onSelect={toggleSelect} onComplete={completeTask} onStart={startTask}
-                onSnooze={snoozeTask} onDelete={deleteTask} onEdit={setEditingTask}
+                onSnooze={snoozeTask} onDelete={deleteTask} onEdit={setEditingTask} onSaveTemplate={saveTemplate}
                 collapsed
               />
             )}
@@ -212,6 +236,30 @@ export function TodayView() {
   )
 }
 
+function RescueBanner({ overdue, onTriage }: { overdue: Task[]; onTriage: (ids: string[]) => void }) {
+  const criticalCount = overdue.filter(t => t.priority === 'critical').length
+  return (
+    <div className="mx-6 mt-3 mb-0 rounded-xl border border-red-500/30 bg-red-500/8 px-4 py-2.5 flex items-center gap-3"
+      style={{ background: 'rgba(239,68,68,0.06)' }}
+    >
+      <Siren size={16} className="text-red-400 flex-shrink-0 animate-pulse" />
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-semibold text-red-400">Rescue Mission</span>
+        <span className="text-xs ml-2" style={{ color: 'var(--tf-text-muted)' }}>
+          {overdue.length} overdue task{overdue.length > 1 ? 's' : ''}
+          {criticalCount > 0 && ` (${criticalCount} critical)`}
+        </span>
+      </div>
+      <button
+        onClick={() => onTriage(overdue.map(t => t.id))}
+        className="flex items-center gap-1 text-xs font-medium text-red-400 hover:text-red-300 transition-colors whitespace-nowrap"
+      >
+        Triage <ChevronRight size={12} />
+      </button>
+    </div>
+  )
+}
+
 interface TaskGroupProps {
   label: string
   icon: React.ReactNode
@@ -224,12 +272,13 @@ interface TaskGroupProps {
   onSnooze: (id: string, m?: number) => void
   onDelete: (id: string) => void
   onEdit: (task: Task) => void
+  onSaveTemplate: (task: Task, name: string) => void
   collapsed?: boolean
 }
 
 function TaskGroup({
   label, icon, tasks, selectedIds, selectionMode,
-  onSelect, onComplete, onStart, onSnooze, onDelete, onEdit, collapsed = false,
+  onSelect, onComplete, onStart, onSnooze, onDelete, onEdit, onSaveTemplate, collapsed = false,
 }: TaskGroupProps) {
   const [open, setOpen] = useState(!collapsed)
   if (tasks.length === 0) return null
@@ -277,6 +326,7 @@ function TaskGroup({
                       onSnooze={onSnooze}
                       onDelete={onDelete}
                       onEdit={onEdit}
+                      onSaveTemplate={onSaveTemplate}
                     />
                   </motion.div>
                 ))}

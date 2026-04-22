@@ -7,15 +7,44 @@ let checkinInterval: ReturnType<typeof setInterval> | null = null
 let idleCheckInterval: ReturnType<typeof setInterval> | null = null
 let activeTaskId: string | null = null
 
+const ROASTS: Record<string, string[]> = {
+  distraction: [
+    'Incredible. You were distracted again.',
+    'Your focus just filed a restraining order against you.',
+    'Another distraction. The internet thanks you.',
+    'Scientists are baffled by your ability to avoid work so efficiently.',
+  ],
+  skipped_checkin: [
+    'Check-in skipped. Ghosting your own task — impressive.',
+    'Bold strategy: ignore the check-in and hope it completes itself.',
+    'Skipped another check-in. The task feels unloved.',
+  ],
+  missed_task: [
+    'Task missed. Your ancestors are disappointed.',
+    'Another task sent to the graveyard. RIP.',
+    'Survived another day untouched. Legendary procrastination.',
+  ],
+  late_completion: ['Better late than never — but barely.', 'Done! The deadline disagrees.'],
+  excuse: ['Filed under: Convincing Nobody.', 'Noted. Still counts as a failure though.'],
+}
+
+function roastMessage(type: string, original: string): string {
+  const pool = ROASTS[type]
+  if (!pool) return original
+  return pool[Math.floor(Math.random() * pool.length)]
+}
+
 export function addShameEntry(entry: {
   type: 'distraction' | 'skipped_checkin' | 'missed_task' | 'late_completion' | 'excuse'
   task_id?: string | null
   message: string
 }): void {
   const db = getDb()
+  const roastMode = getSetting('roast_mode') === 'true'
+  const message = roastMode ? roastMessage(entry.type, entry.message) : entry.message
   db.prepare(
     'INSERT INTO shame_log (id, type, task_id, message, created_at) VALUES (?, ?, ?, ?, ?)'
-  ).run(randomUUID(), entry.type, entry.task_id ?? null, entry.message, Date.now())
+  ).run(randomUUID(), entry.type, entry.task_id ?? null, message, Date.now())
 }
 
 export function startCheckinSchedule(taskId: string): void {

@@ -13,9 +13,37 @@ const crypto_1 = require("crypto");
 let checkinInterval = null;
 let idleCheckInterval = null;
 let activeTaskId = null;
+const ROASTS = {
+    distraction: [
+        'Incredible. You were distracted again.',
+        'Your focus just filed a restraining order against you.',
+        'Another distraction. The internet thanks you.',
+        'Scientists are baffled by your ability to avoid work so efficiently.',
+    ],
+    skipped_checkin: [
+        'Check-in skipped. Ghosting your own task — impressive.',
+        'Bold strategy: ignore the check-in and hope it completes itself.',
+        'Skipped another check-in. The task feels unloved.',
+    ],
+    missed_task: [
+        'Task missed. Your ancestors are disappointed.',
+        'Another task sent to the graveyard. RIP.',
+        'Survived another day untouched. Legendary procrastination.',
+    ],
+    late_completion: ['Better late than never — but barely.', 'Done! The deadline disagrees.'],
+    excuse: ['Filed under: Convincing Nobody.', 'Noted. Still counts as a failure though.'],
+};
+function roastMessage(type, original) {
+    const pool = ROASTS[type];
+    if (!pool)
+        return original;
+    return pool[Math.floor(Math.random() * pool.length)];
+}
 function addShameEntry(entry) {
     const db = (0, db_1.getDb)();
-    db.prepare('INSERT INTO shame_log (id, type, task_id, message, created_at) VALUES (?, ?, ?, ?, ?)').run((0, crypto_1.randomUUID)(), entry.type, entry.task_id ?? null, entry.message, Date.now());
+    const roastMode = (0, db_1.getSetting)('roast_mode') === 'true';
+    const message = roastMode ? roastMessage(entry.type, entry.message) : entry.message;
+    db.prepare('INSERT INTO shame_log (id, type, task_id, message, created_at) VALUES (?, ?, ?, ?, ?)').run((0, crypto_1.randomUUID)(), entry.type, entry.task_id ?? null, message, Date.now());
 }
 function startCheckinSchedule(taskId) {
     stopCheckinSchedule();

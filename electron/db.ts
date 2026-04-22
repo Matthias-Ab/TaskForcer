@@ -78,12 +78,33 @@ function migrate(db: import('better-sqlite3').Database): void {
       value TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS task_templates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      data TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS xp_log (
+      id TEXT PRIMARY KEY,
+      amount INTEGER NOT NULL,
+      reason TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_at);
     CREATE INDEX IF NOT EXISTS idx_sessions_task ON sessions(task_id);
     CREATE INDEX IF NOT EXISTS idx_shame_log_created ON shame_log(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_daily_scores_date ON daily_scores(date DESC);
+    CREATE INDEX IF NOT EXISTS idx_xp_log_created ON xp_log(created_at DESC);
   `)
+
+  // Migrations for existing DBs
+  const cols = (db.prepare(`PRAGMA table_info(daily_scores)`).all() as { name: string }[]).map(c => c.name)
+  if (!cols.includes('freeze_used')) {
+    db.exec(`ALTER TABLE daily_scores ADD COLUMN freeze_used INTEGER DEFAULT 0`)
+  }
 
   const defaults: Record<string, string> = {
     work_start: '09:00',

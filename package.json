@@ -25,9 +25,11 @@
     "active-win": "^8.2.1"
   },
   "dependencies": {
+    "@types/canvas-confetti": "^1.9.0",
     "@types/react-window": "^1.8.8",
     "auto-launch": "^5.0.6",
     "better-sqlite3": "^12.9.0",
+    "canvas-confetti": "^1.9.4",
     "cmdk": "^1.1.1",
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.8.0",

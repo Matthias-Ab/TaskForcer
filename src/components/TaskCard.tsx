@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Play, Trash2, AlarmClock, Pencil, ChevronDown } from 'lucide-react'
+import { Play, Trash2, AlarmClock, Pencil, ChevronDown, Bookmark } from 'lucide-react'
 import { Task } from '@/hooks/useTasks'
 import { cn, formatDate, isOverdue } from '@/lib/utils'
 import { spring, checkmark } from '@/lib/animations'
@@ -22,15 +22,19 @@ interface TaskCardProps {
   onSnooze: (id: string, minutes?: number) => void
   onDelete: (id: string) => void
   onEdit: (task: Task) => void
+  onSaveTemplate?: (task: Task, name: string) => void
 }
 
 export function TaskCard({
   task, selected, selectionMode, onSelect,
-  onComplete, onStart, onSnooze, onDelete, onEdit,
+  onComplete, onStart, onSnooze, onDelete, onEdit, onSaveTemplate,
 }: TaskCardProps) {
   const [completing, setCompleting] = useState(false)
   const [showSnooze, setShowSnooze] = useState(false)
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const [templateName, setTemplateName] = useState('')
   const snoozeRef = useRef<HTMLDivElement>(null)
+  const templateInputRef = useRef<HTMLInputElement>(null)
 
   const overdue = isOverdue(task.due_at) && task.status !== 'completed'
   const isInProgress = (task.status as string) === 'in_progress'
@@ -215,6 +219,20 @@ export function TaskCard({
             </AnimatePresence>
           </div>
 
+          {onSaveTemplate && !savingTemplate && (
+            <ActionBtn
+              onClick={e => {
+                e.stopPropagation()
+                setTemplateName(task.title)
+                setSavingTemplate(true)
+                setTimeout(() => templateInputRef.current?.focus(), 50)
+              }}
+              title="Save as template"
+            >
+              <Bookmark size={12} />
+            </ActionBtn>
+          )}
+
           <ActionBtn
             onClick={e => { e.stopPropagation(); onDelete(task.id) }}
             title="Delete task"
@@ -224,6 +242,40 @@ export function TaskCard({
           </ActionBtn>
         </div>
       )}
+
+      {/* Template name input (inline) */}
+      <AnimatePresence>
+        {savingTemplate && (
+          <motion.form
+            initial={{ opacity: 0, width: 0 }}
+            animate={{ opacity: 1, width: 'auto' }}
+            exit={{ opacity: 0, width: 0 }}
+            transition={{ duration: 0.15 }}
+            className="flex items-center gap-1 flex-shrink-0"
+            onSubmit={e => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (templateName.trim()) {
+                onSaveTemplate?.(task, templateName.trim())
+              }
+              setSavingTemplate(false)
+              setTemplateName('')
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <input
+              ref={templateInputRef}
+              value={templateName}
+              onChange={e => setTemplateName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Escape') { setSavingTemplate(false); setTemplateName('') } }}
+              placeholder="Template name"
+              className="text-xs px-2 py-1 rounded-lg border w-32 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              style={{ background: 'var(--tf-input-bg)', borderColor: 'var(--tf-input-border)', color: 'var(--tf-input-text)' }}
+            />
+            <button type="submit" className="text-xs text-indigo-400 hover:text-indigo-300 px-1">Save</button>
+          </motion.form>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }
