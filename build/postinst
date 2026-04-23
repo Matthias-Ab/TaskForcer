@@ -1,0 +1,9 @@
+#!/bin/bash
+set -e
+
+# Fix Chrome sandbox SUID bit — required for Electron on Linux without --no-sandbox
+SANDBOX=/opt/TaskForcer/chrome-sandbox
+if [ -f "$SANDBOX" ]; then
+  chown root:root "$SANDBOX"
+  chmod 4755 "$SANDBOX"
+fi
