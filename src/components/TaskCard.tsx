@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Play, Trash2, AlarmClock, Pencil, ChevronDown, Bookmark } from 'lucide-react'
+import { Play, Trash2, AlarmClock, Pencil, ChevronDown, Bookmark, ListTodo } from 'lucide-react'
 import { Task } from '@/hooks/useTasks'
 import { cn, formatDate, isOverdue } from '@/lib/utils'
 import { spring, checkmark } from '@/lib/animations'
@@ -16,18 +16,21 @@ interface TaskCardProps {
   task: Task
   selected?: boolean
   selectionMode?: boolean
+  subtaskCount?: number
+  subtaskDone?: number
   onSelect?: (id: string) => void
   onComplete: (id: string) => void
   onStart: (id: string) => void
   onSnooze: (id: string, minutes?: number) => void
   onDelete: (id: string) => void
   onEdit: (task: Task) => void
+  onPreview: (task: Task) => void
   onSaveTemplate?: (task: Task, name: string) => void
 }
 
 export function TaskCard({
-  task, selected, selectionMode, onSelect,
-  onComplete, onStart, onSnooze, onDelete, onEdit, onSaveTemplate,
+  task, selected, selectionMode, subtaskCount, subtaskDone,
+  onSelect, onComplete, onStart, onSnooze, onDelete, onEdit, onPreview, onSaveTemplate,
 }: TaskCardProps) {
   const [completing, setCompleting] = useState(false)
   const [showSnooze, setShowSnooze] = useState(false)
@@ -71,6 +74,8 @@ export function TaskCard({
     : 'var(--tf-card-border)'
 
   const showActionsArea = task.status !== 'completed' && !selectionMode
+  const hasSubtasks = subtaskCount !== undefined && subtaskCount > 0
+  const subtaskPct = hasSubtasks ? (subtaskDone ?? 0) / subtaskCount! : 0
 
   return (
     <motion.div
@@ -124,12 +129,18 @@ export function TaskCard({
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <p
-          className={cn('text-sm font-medium truncate', task.status === 'completed' ? 'line-through' : '')}
+        {/* Title — clickable to open preview */}
+        <button
+          onClick={e => { e.stopPropagation(); onPreview(task) }}
+          className={cn(
+            'text-sm font-medium truncate text-left w-full hover:underline decoration-dotted underline-offset-2',
+            task.status === 'completed' ? 'line-through' : ''
+          )}
           style={{ color: task.status === 'completed' ? 'var(--tf-text-faint)' : 'var(--tf-text)' }}
         >
           {task.title}
-        </p>
+        </button>
+
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           {task.due_at && (
             <span
@@ -161,7 +172,25 @@ export function TaskCard({
               {task.estimate_minutes}m
             </span>
           ) : null}
+          {/* Subtask progress pill */}
+          {hasSubtasks && (
+            <span className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--tf-text-faint)' }}>
+              <ListTodo size={9} />
+              {subtaskDone}/{subtaskCount}
+            </span>
+          )}
         </div>
+
+        {/* Subtask progress bar */}
+        {hasSubtasks && (
+          <div className="mt-1.5 h-0.5 rounded-full overflow-hidden w-full" style={{ background: 'var(--tf-bg-tertiary)' }}>
+            <motion.div
+              className="h-full rounded-full bg-emerald-500"
+              animate={{ width: `${subtaskPct * 100}%` }}
+              transition={{ duration: 0.3 }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Status badge */}

@@ -16,6 +16,10 @@ interface TaskContextValue {
   deleteTasks: (ids: string[]) => Promise<void>
   completeTasks: (ids: string[]) => Promise<void>
   updateTasksPriority: (ids: string[], priority: Task['priority']) => Promise<void>
+  getSubtasks: (parentId: string) => Promise<Task[]>
+  createSubtask: (parentId: string, data: Partial<Task>) => Promise<Task | null>
+  completeSubtask: (id: string) => Promise<void>
+  deleteSubtask: (id: string) => Promise<void>
 }
 
 const TaskContext = createContext<TaskContextValue | null>(null)
@@ -166,11 +170,47 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
   }, [reload])
 
+  const getSubtasks = useCallback(async (parentId: string): Promise<Task[]> => {
+    return ipc.invoke<Task[]>('tasks:subtasks', parentId)
+  }, [])
+
+  const createSubtask = useCallback(async (parentId: string, data: Partial<Task>): Promise<Task | null> => {
+    try {
+      const created = await ipc.invoke<Task>('tasks:create', {
+        ...data,
+        parent_task_id: parentId,
+        priority: data.priority || 'medium',
+        status: 'pending',
+      })
+      return created
+    } catch {
+      toast.error('Failed to create subtask')
+      return null
+    }
+  }, [])
+
+  const completeSubtask = useCallback(async (id: string) => {
+    try {
+      await ipc.invoke('tasks:complete', id)
+    } catch {
+      toast.error('Failed to complete subtask')
+    }
+  }, [])
+
+  const deleteSubtask = useCallback(async (id: string) => {
+    try {
+      await ipc.invoke('tasks:delete', id)
+    } catch {
+      toast.error('Failed to delete subtask')
+    }
+  }, [])
+
   return (
     <TaskContext.Provider value={{
       tasks, loading, reload,
       createTask, updateTask, completeTask, startTask,
       snoozeTask, deleteTask, deleteTasks, completeTasks, updateTasksPriority,
+      getSubtasks, createSubtask, completeSubtask, deleteSubtask,
     }}>
       {children}
     </TaskContext.Provider>

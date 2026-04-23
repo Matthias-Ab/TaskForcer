@@ -1,14 +1,16 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTaskContext } from '@/contexts/TaskContext'
 import { useTemplates } from '@/hooks/useTemplates'
 import { TaskCard } from '@/components/TaskCard'
 import { CreateTaskForm } from '@/components/CreateTaskForm'
 import { EditTaskForm } from '@/components/EditTaskForm'
+import { TaskPreviewModal } from '@/components/TaskPreviewModal'
 import { TaskSkeletonList } from '@/components/ui/Skeleton'
 import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { Task } from '@/hooks/useTasks'
+import { ipc } from '@/lib/ipc'
 import { pageTransition, listItem } from '@/lib/animations'
 import { CheckSquare2, AlertTriangle, Circle, CheckCheck, Trash2, ChevronDown, Siren, ChevronRight } from 'lucide-react'
 
@@ -27,10 +29,34 @@ export function TodayView() {
 
   const { saveTemplate: _saveTemplate } = useTemplates()
   const saveTemplate = (task: Task, name: string) => _saveTemplate(name, task)
+
   const [showCreate, setShowCreate] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
+  const [previewTask, setPreviewTask] = useState<Task | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showPriorityMenu, setShowPriorityMenu] = useState(false)
+  // Map of taskId -> { total, done } for subtask counts
+  const [subtaskCounts, setSubtaskCounts] = useState<Record<string, { total: number; done: number }>>({})
+
+  // Load subtask counts for all top-level tasks
+  const loadSubtaskCounts = useCallback(async (taskList: Task[]) => {
+    const parentIds = taskList.filter(t => !t.parent_task_id).map(t => t.id)
+    const results = await Promise.all(
+      parentIds.map(async id => {
+        const subs = await ipc.invoke<Task[]>('tasks:subtasks', id)
+        return { id, total: subs.length, done: subs.filter(s => s.status === 'completed').length }
+      })
+    )
+    const map: Record<string, { total: number; done: number }> = {}
+    for (const r of results) {
+      if (r.total > 0) map[r.id] = { total: r.total, done: r.done }
+    }
+    setSubtaskCounts(map)
+  }, [])
+
+  useEffect(() => {
+    if (!loading) loadSubtaskCounts(tasks)
+  }, [tasks, loading])
 
   const selectionMode = selectedIds.size > 0
 
@@ -58,12 +84,27 @@ export function TodayView() {
     clearSelection()
   }
 
-  const activeTasks = tasks.filter(t => t.status !== 'completed')
+  // Only show top-level tasks in the main list (subtasks appear in preview)
+  const topLevel = tasks.filter(t => !t.parent_task_id)
+  const activeTasks = topLevel.filter(t => t.status !== 'completed')
   const overdueTasks = activeTasks.filter(t => t.due_at && t.due_at < Date.now())
   const critical = activeTasks.filter(t => t.priority === 'critical')
   const medium = activeTasks.filter(t => t.priority === 'medium')
   const low = activeTasks.filter(t => t.priority === 'low')
-  const completed = tasks.filter(t => t.status === 'completed')
+  const completed = topLevel.filter(t => t.status === 'completed')
+
+  const sharedGroupProps = {
+    selectedIds, selectionMode,
+    subtaskCounts,
+    onSelect: toggleSelect,
+    onComplete: completeTask,
+    onStart: startTask,
+    onSnooze: snoozeTask,
+    onDelete: deleteTask,
+    onEdit: setEditingTask,
+    onPreview: setPreviewTask,
+    onSaveTemplate: saveTemplate,
+  }
 
   return (
     <motion.div
@@ -161,9 +202,7 @@ export function TodayView() {
           >
             <RescueBanner
               overdue={overdueTasks}
-              onTriage={(ids) => {
-                setSelectedIds(new Set(ids))
-              }}
+              onTriage={(ids) => setSelectedIds(new Set(ids))}
             />
           </motion.div>
         )}
@@ -181,32 +220,11 @@ export function TodayView() {
           </div>
         ) : (
           <>
-            <TaskGroup
-              label="Critical" icon={<AlertTriangle size={13} className="text-red-500" />}
-              tasks={critical} selectedIds={selectedIds} selectionMode={selectionMode}
-              onSelect={toggleSelect} onComplete={completeTask} onStart={startTask}
-              onSnooze={snoozeTask} onDelete={deleteTask} onEdit={setEditingTask} onSaveTemplate={saveTemplate}
-            />
-            <TaskGroup
-              label="Medium" icon={<Circle size={13} className="text-amber-400" />}
-              tasks={medium} selectedIds={selectedIds} selectionMode={selectionMode}
-              onSelect={toggleSelect} onComplete={completeTask} onStart={startTask}
-              onSnooze={snoozeTask} onDelete={deleteTask} onEdit={setEditingTask} onSaveTemplate={saveTemplate}
-            />
-            <TaskGroup
-              label="Low Priority" icon={<Circle size={13} style={{ color: 'var(--tf-text-faint)' }} />}
-              tasks={low} selectedIds={selectedIds} selectionMode={selectionMode}
-              onSelect={toggleSelect} onComplete={completeTask} onStart={startTask}
-              onSnooze={snoozeTask} onDelete={deleteTask} onEdit={setEditingTask} onSaveTemplate={saveTemplate}
-            />
+            <TaskGroup label="Critical" icon={<AlertTriangle size={13} className="text-red-500" />} tasks={critical} {...sharedGroupProps} />
+            <TaskGroup label="Medium" icon={<Circle size={13} className="text-amber-400" />} tasks={medium} {...sharedGroupProps} />
+            <TaskGroup label="Low Priority" icon={<Circle size={13} style={{ color: 'var(--tf-text-faint)' }} />} tasks={low} {...sharedGroupProps} />
             {completed.length > 0 && (
-              <TaskGroup
-                label="Completed" icon={<CheckSquare2 size={13} className="text-emerald-500" />}
-                tasks={completed} selectedIds={selectedIds} selectionMode={selectionMode}
-                onSelect={toggleSelect} onComplete={completeTask} onStart={startTask}
-                onSnooze={snoozeTask} onDelete={deleteTask} onEdit={setEditingTask} onSaveTemplate={saveTemplate}
-                collapsed
-              />
+              <TaskGroup label="Completed" icon={<CheckSquare2 size={13} className="text-emerald-500" />} tasks={completed} {...sharedGroupProps} collapsed />
             )}
           </>
         )}
@@ -232,6 +250,17 @@ export function TodayView() {
           />
         )}
       </Dialog>
+
+      {/* Task preview modal */}
+      <TaskPreviewModal
+        task={previewTask}
+        onClose={() => setPreviewTask(null)}
+        onEdit={(task) => { setPreviewTask(null); setEditingTask(task) }}
+        onComplete={(id) => { completeTask(id); setPreviewTask(null) }}
+        onDelete={(id) => { deleteTask(id); setPreviewTask(null) }}
+        onStart={(id) => { startTask(id); setPreviewTask(null) }}
+        onSnooze={(id, m) => { snoozeTask(id, m); setPreviewTask(null) }}
+      />
     </motion.div>
   )
 }
@@ -239,7 +268,7 @@ export function TodayView() {
 function RescueBanner({ overdue, onTriage }: { overdue: Task[]; onTriage: (ids: string[]) => void }) {
   const criticalCount = overdue.filter(t => t.priority === 'critical').length
   return (
-    <div className="mx-6 mt-3 mb-0 rounded-xl border border-red-500/30 bg-red-500/8 px-4 py-2.5 flex items-center gap-3"
+    <div className="mx-6 mt-3 mb-0 rounded-xl border border-red-500/30 px-4 py-2.5 flex items-center gap-3"
       style={{ background: 'rgba(239,68,68,0.06)' }}
     >
       <Siren size={16} className="text-red-400 flex-shrink-0 animate-pulse" />
@@ -266,19 +295,21 @@ interface TaskGroupProps {
   tasks: Task[]
   selectedIds: Set<string>
   selectionMode: boolean
+  subtaskCounts: Record<string, { total: number; done: number }>
   onSelect: (id: string) => void
   onComplete: (id: string) => void
   onStart: (id: string) => void
   onSnooze: (id: string, m?: number) => void
   onDelete: (id: string) => void
   onEdit: (task: Task) => void
+  onPreview: (task: Task) => void
   onSaveTemplate: (task: Task, name: string) => void
   collapsed?: boolean
 }
 
 function TaskGroup({
-  label, icon, tasks, selectedIds, selectionMode,
-  onSelect, onComplete, onStart, onSnooze, onDelete, onEdit, onSaveTemplate, collapsed = false,
+  label, icon, tasks, selectedIds, selectionMode, subtaskCounts,
+  onSelect, onComplete, onStart, onSnooze, onDelete, onEdit, onPreview, onSaveTemplate, collapsed = false,
 }: TaskGroupProps) {
   const [open, setOpen] = useState(!collapsed)
   if (tasks.length === 0) return null
@@ -320,12 +351,15 @@ function TaskGroup({
                       task={task}
                       selected={selectedIds.has(task.id)}
                       selectionMode={selectionMode}
+                      subtaskCount={subtaskCounts[task.id]?.total}
+                      subtaskDone={subtaskCounts[task.id]?.done}
                       onSelect={onSelect}
                       onComplete={onComplete}
                       onStart={onStart}
                       onSnooze={onSnooze}
                       onDelete={onDelete}
                       onEdit={onEdit}
+                      onPreview={onPreview}
                       onSaveTemplate={onSaveTemplate}
                     />
                   </motion.div>

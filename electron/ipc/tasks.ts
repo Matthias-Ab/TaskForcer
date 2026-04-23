@@ -117,7 +117,27 @@ export function registerTaskIpc(): void {
   })
 
   ipcMain.handle('tasks:delete', (_e, id: string) => {
-    getDb().prepare('DELETE FROM tasks WHERE id = ?').run(id)
+    const db = getDb()
+    // Cascade delete subtasks
+    db.prepare('DELETE FROM tasks WHERE parent_task_id = ?').run(id)
+    db.prepare('DELETE FROM tasks WHERE id = ?').run(id)
+    return { ok: true }
+  })
+
+  ipcMain.handle('tasks:subtasks', (_e, parentId: string) => {
+    const db = getDb()
+    const rows = db.prepare(
+      'SELECT * FROM tasks WHERE parent_task_id = ? ORDER BY created_at ASC'
+    ).all(parentId) as Record<string, unknown>[]
+    return rows.map(parseTask)
+  })
+
+  ipcMain.handle('tasks:complete-subtasks', (_e, parentId: string) => {
+    const db = getDb()
+    const completedAt = Date.now()
+    db.prepare(
+      `UPDATE tasks SET status = 'completed', completed_at = ? WHERE parent_task_id = ? AND status != 'completed'`
+    ).run(completedAt, parentId)
     return { ok: true }
   })
 
