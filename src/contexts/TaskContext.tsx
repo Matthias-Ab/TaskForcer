@@ -82,15 +82,18 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   }, [tasks])
 
   const completeTask = useCallback(async (id: string) => {
+    const wasInProgress = tasks.find(t => t.id === id)?.status === 'in_progress'
     setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'completed' as const } : t))
     try {
       await ipc.invoke('tasks:complete', id)
       await ipc.invoke('scoring:invalidate')
+      // Stop the widget if this was the active task
+      if (wasInProgress) await ipc.invoke('task:stopped')
     } catch {
       setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'pending' as const } : t))
       toast.error('Failed to complete task')
     }
-  }, [])
+  }, [tasks])
 
   const startTask = useCallback(async (id: string): Promise<Task | null> => {
     const task = tasks.find(t => t.id === id)
@@ -149,16 +152,18 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   }, [tasks])
 
   const completeTasks = useCallback(async (ids: string[]) => {
+    const hasActiveTask = tasks.some(t => ids.includes(t.id) && t.status === 'in_progress')
     setTasks(prev => prev.map(t => ids.includes(t.id) ? { ...t, status: 'completed' as const } : t))
     try {
       await Promise.all(ids.map(id => ipc.invoke('tasks:complete', id)))
       await ipc.invoke('scoring:invalidate')
+      if (hasActiveTask) await ipc.invoke('task:stopped')
       toast.success(`Completed ${ids.length} task${ids.length > 1 ? 's' : ''}`)
     } catch {
       toast.error('Failed to complete tasks')
       reload()
     }
-  }, [reload])
+  }, [tasks, reload])
 
   const updateTasksPriority = useCallback(async (ids: string[], priority: Task['priority']) => {
     setTasks(prev => prev.map(t => ids.includes(t.id) ? { ...t, priority } : t))

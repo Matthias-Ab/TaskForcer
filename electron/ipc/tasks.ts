@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { getDb } from '../db'
 import { randomUUID } from 'crypto'
+import { spawnNextRecurrence } from '../scheduler'
 
 export interface Task {
   id: string
@@ -146,7 +147,10 @@ export function registerTaskIpc(): void {
     const completedAt = Date.now()
     db.prepare(`UPDATE tasks SET status = 'completed', completed_at = ? WHERE id = ?`).run(completedAt, id)
     const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as Record<string, unknown> | undefined
-    return row ? parseTask(row) : null
+    const task = row ? parseTask(row) : null
+    // Spawn next occurrence for recurring tasks
+    if (task?.recurrence_rule) spawnNextRecurrence(id)
+    return task
   })
 
   ipcMain.handle('tasks:start', (_e, id: string) => {

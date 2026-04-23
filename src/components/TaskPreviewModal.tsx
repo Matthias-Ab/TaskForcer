@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import ReactMarkdown from 'react-markdown'
 import {
   X, Pencil, Trash2, Play, CheckCheck, AlarmClock, ChevronDown,
   Plus, Check, Circle, AlertTriangle, Clock, Tag, RotateCw, ListTodo,
@@ -194,9 +195,22 @@ export function TaskPreviewModal({
                     <FileText size={12} />
                     <span className="text-xs font-semibold uppercase tracking-wider">Notes</span>
                   </div>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--tf-text)' }}>
-                    {task.description}
-                  </p>
+                  <div className="text-sm leading-relaxed prose-sm" style={{ color: 'var(--tf-text)' }}>
+                    <ReactMarkdown
+                      components={{
+                        p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
+                        strong: ({ children }) => <strong className="font-semibold" style={{ color: 'var(--tf-text)' }}>{children}</strong>,
+                        em: ({ children }) => <em className="italic">{children}</em>,
+                        ul: ({ children }) => <ul className="list-disc pl-4 mb-1.5 space-y-0.5">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal pl-4 mb-1.5 space-y-0.5">{children}</ol>,
+                        li: ({ children }) => <li>{children}</li>,
+                        code: ({ children }) => <code className="px-1 py-0.5 rounded text-xs font-mono" style={{ background: 'var(--tf-bg-tertiary)' }}>{children}</code>,
+                        a: ({ href, children }) => <a href={href} className="text-indigo-400 underline hover:text-indigo-300">{children}</a>,
+                      }}
+                    >
+                      {task.description}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               ) : null}
 

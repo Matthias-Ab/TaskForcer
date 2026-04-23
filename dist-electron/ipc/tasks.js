@@ -4,6 +4,7 @@ exports.registerTaskIpc = registerTaskIpc;
 const electron_1 = require("electron");
 const db_1 = require("../db");
 const crypto_1 = require("crypto");
+const scheduler_1 = require("../scheduler");
 function parseTask(row) {
     return {
         ...row,
@@ -108,7 +109,11 @@ function registerTaskIpc() {
         const completedAt = Date.now();
         db.prepare(`UPDATE tasks SET status = 'completed', completed_at = ? WHERE id = ?`).run(completedAt, id);
         const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
-        return row ? parseTask(row) : null;
+        const task = row ? parseTask(row) : null;
+        // Spawn next occurrence for recurring tasks
+        if (task?.recurrence_rule)
+            (0, scheduler_1.spawnNextRecurrence)(id);
+        return task;
     });
     electron_1.ipcMain.handle('tasks:start', (_e, id) => {
         const db = (0, db_1.getDb)();
