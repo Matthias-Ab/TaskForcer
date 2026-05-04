@@ -9,6 +9,8 @@ let DB_DIR: string
 let DB_PATH: string
 let db: import('better-sqlite3').Database
 
+const settingCache = new Map<string, string>()
+
 export function getDb() {
   if (!db) throw new Error('DB not initialized')
   return db
@@ -23,11 +25,15 @@ export function initDb(): void {
   db = new Database(DB_PATH)
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
+  db.pragma('wal_autocheckpoint = 1000')
 
-  migrate(db)
+  db.transaction(() => migrate(db))()
 }
 
-function migrate(db: import('better-sqlite3').Database): void {
+// ---------------------------------------------------------------------------
+// Schema baseline — tables that exist from day 1
+// ---------------------------------------------------------------------------
+function createBaseTables(db: import('better-sqlite3').Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS tasks (
       id TEXT PRIMARY KEY,
@@ -92,16 +98,6 @@ function migrate(db: import('better-sqlite3').Database): void {
       created_at INTEGER NOT NULL
     );
 
-    CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-    CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_at);
-    CREATE INDEX IF NOT EXISTS idx_sessions_task ON sessions(task_id);
-    CREATE INDEX IF NOT EXISTS idx_shame_log_created ON shame_log(created_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_daily_scores_date ON daily_scores(date DESC);
-    CREATE INDEX IF NOT EXISTS idx_xp_log_created ON xp_log(created_at DESC);
-  `)
-
-  // Projects table
-  db.exec(`
     CREATE TABLE IF NOT EXISTS projects (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -109,21 +105,54 @@ function migrate(db: import('better-sqlite3').Database): void {
       emoji TEXT DEFAULT '',
       created_at INTEGER NOT NULL
     );
-    CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
+
+    CREATE TABLE IF NOT EXISTS schema_version (
+      version INTEGER PRIMARY KEY
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_tasks_status   ON tasks(status);
+    CREATE INDEX IF NOT EXISTS idx_tasks_due       ON tasks(due_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_parent    ON tasks(parent_task_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_task   ON sessions(task_id);
+    CREATE INDEX IF NOT EXISTS idx_shame_log_created   ON shame_log(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_daily_scores_date   ON daily_scores(date DESC);
+    CREATE INDEX IF NOT EXISTS idx_xp_log_created      ON xp_log(created_at DESC);
   `)
+}
 
-  // Migrations for existing DBs
-  const taskCols = (db.prepare(`PRAGMA table_info(tasks)`).all() as { name: string }[]).map(c => c.name)
-  if (!taskCols.includes('project_id')) db.exec(`ALTER TABLE tasks ADD COLUMN project_id TEXT REFERENCES projects(id)`)
-  if (!taskCols.includes('sort_order')) db.exec(`ALTER TABLE tasks ADD COLUMN sort_order INTEGER DEFAULT 0`)
-  if (!taskCols.includes('blocked_by')) db.exec(`ALTER TABLE tasks ADD COLUMN blocked_by TEXT DEFAULT '[]'`)
-  if (!taskCols.includes('elapsed_seconds')) db.exec(`ALTER TABLE tasks ADD COLUMN elapsed_seconds INTEGER DEFAULT 0`)
+// ---------------------------------------------------------------------------
+// Numbered migrations — append only, never edit existing entries
+// ---------------------------------------------------------------------------
+const MIGRATIONS: string[] = [
+  // 1 — columns added after initial release
+  `ALTER TABLE tasks ADD COLUMN project_id TEXT REFERENCES projects(id)`,
+  // 2
+  `ALTER TABLE tasks ADD COLUMN sort_order INTEGER DEFAULT 0`,
+  // 3
+  `ALTER TABLE tasks ADD COLUMN blocked_by TEXT DEFAULT '[]'`,
+  // 4
+  `ALTER TABLE tasks ADD COLUMN elapsed_seconds INTEGER DEFAULT 0`,
+  // 5
+  `ALTER TABLE daily_scores ADD COLUMN freeze_used INTEGER DEFAULT 0`,
+  // 6 — index on project_id (safe to run after column exists)
+  `CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id)`,
+]
 
-  const cols = (db.prepare(`PRAGMA table_info(daily_scores)`).all() as { name: string }[]).map(c => c.name)
-  if (!cols.includes('freeze_used')) {
-    db.exec(`ALTER TABLE daily_scores ADD COLUMN freeze_used INTEGER DEFAULT 0`)
+function runMigrations(db: import('better-sqlite3').Database): void {
+  const { version } = db.prepare(
+    `SELECT IFNULL(MAX(version), 0) AS version FROM schema_version`
+  ).get() as { version: number }
+
+  for (let i = version; i < MIGRATIONS.length; i++) {
+    db.exec(MIGRATIONS[i])
+    db.prepare(`INSERT INTO schema_version VALUES (?)`).run(i + 1)
   }
+}
 
+// ---------------------------------------------------------------------------
+// Default settings seed
+// ---------------------------------------------------------------------------
+function seedSettings(db: import('better-sqlite3').Database): void {
   const defaults: Record<string, string> = {
     work_start: '09:00',
     work_end: '18:00',
@@ -140,15 +169,31 @@ function migrate(db: import('better-sqlite3').Database): void {
   for (const [k, v] of Object.entries(defaults)) insert.run(k, v)
 }
 
+function migrate(db: import('better-sqlite3').Database): void {
+  createBaseTables(db)
+  runMigrations(db)
+  seedSettings(db)
+}
+
+// ---------------------------------------------------------------------------
+// Settings helpers with in-memory cache
+// ---------------------------------------------------------------------------
 export function getSetting(key: string): string | null {
+  if (settingCache.has(key)) return settingCache.get(key)!
   const row = getDb().prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined
-  return row?.value ?? null
+  const value = row?.value ?? null
+  if (value !== null) settingCache.set(key, value)
+  return value
 }
 
 export function setSetting(key: string, value: string): void {
   getDb().prepare('INSERT OR REPLACE INTO settings(key, value) VALUES (?, ?)').run(key, value)
+  settingCache.set(key, value)
 }
 
+// ---------------------------------------------------------------------------
+// Encryption helpers
+// ---------------------------------------------------------------------------
 export function encryptValue(value: string): string {
   if (safeStorage.isEncryptionAvailable()) {
     return safeStorage.encryptString(value).toString('base64')
