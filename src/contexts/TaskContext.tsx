@@ -54,6 +54,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       allowed_urls: [],
       distraction_apps: [],
       tags: data.tags || [],
+      project_id: data.project_id ?? null,
+      sort_order: 0,
+      blocked_by: [],
+      elapsed_seconds: 0,
     }
     setTasks(prev => [optimistic, ...prev])
     try {

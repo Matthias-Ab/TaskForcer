@@ -15,6 +15,10 @@ export interface Task {
   completed_at: number | null
   recurrence_rule: string | null
   parent_task_id: string | null
+  project_id: string | null
+  sort_order: number
+  blocked_by: string[]
+  elapsed_seconds: number
   required_tools: string[]
   allowed_urls: string[]
   distraction_apps: string[]
@@ -28,6 +32,10 @@ function parseTask(row: Record<string, unknown>): Task {
     allowed_urls: JSON.parse((row.allowed_urls as string) || '[]'),
     distraction_apps: JSON.parse((row.distraction_apps as string) || '[]'),
     tags: JSON.parse((row.tags as string) || '[]'),
+    blocked_by: JSON.parse((row.blocked_by as string) || '[]'),
+    project_id: (row.project_id as string) || null,
+    sort_order: (row.sort_order as number) || 0,
+    elapsed_seconds: (row.elapsed_seconds as number) || 0,
   } as Task
 }
 
@@ -168,6 +176,21 @@ export function registerTaskIpc(): void {
   ipcMain.handle('tasks:snooze', (_e, id: string, minutes: number) => {
     const snoozeUntil = Date.now() + minutes * 60 * 1000
     getDb().prepare(`UPDATE tasks SET status = 'snoozed', due_at = ? WHERE id = ?`).run(snoozeUntil, id)
+    return { ok: true }
+  })
+
+  ipcMain.handle('tasks:reorder', (_e, orderedIds: string[]) => {
+    const db = getDb()
+    const update = db.prepare('UPDATE tasks SET sort_order = ? WHERE id = ?')
+    const tx = db.transaction(() => {
+      orderedIds.forEach((id, i) => update.run(i, id))
+    })
+    tx()
+    return { ok: true }
+  })
+
+  ipcMain.handle('tasks:log-elapsed', (_e, id: string, seconds: number) => {
+    getDb().prepare('UPDATE tasks SET elapsed_seconds = elapsed_seconds + ? WHERE id = ?').run(seconds, id)
     return { ok: true }
   })
 

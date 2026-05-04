@@ -14,6 +14,10 @@ export interface Task {
   completed_at: number | null
   recurrence_rule: string | null
   parent_task_id: string | null
+  project_id: string | null
+  sort_order: number
+  blocked_by: string[]
+  elapsed_seconds: number
   required_tools: string[]
   allowed_urls: string[]
   distraction_apps: string[]
@@ -108,6 +112,10 @@ export function useTodayTasks() {
       allowed_urls: [],
       distraction_apps: [],
       tags: data.tags || [],
+      project_id: data.project_id ?? null,
+      sort_order: 0,
+      blocked_by: [],
+      elapsed_seconds: 0,
     }
     setTasks(prev => [optimistic, ...prev])
     try {

@@ -10,9 +10,12 @@ import { UpcomingView } from './views/UpcomingView'
 import { StatsView } from './views/StatsView'
 import { ShameLogView } from './views/ShameLogView'
 import { SettingsView } from './views/SettingsView'
+import { WeeklyReviewView } from './views/WeeklyReviewView'
+import { ProjectView } from './views/ProjectView'
 import { CommandPalette } from '@/components/CommandPalette'
 import { SearchModal } from '@/components/SearchModal'
 import { TaskPreviewModal } from '@/components/TaskPreviewModal'
+import { ShortcutHelp } from '@/components/ShortcutHelp'
 import { CheckinDialog } from '@/components/CheckinDialog'
 import { LockoutDialog } from '@/components/LockoutDialog'
 import { Dialog } from '@/components/ui/Dialog'
@@ -26,6 +29,7 @@ export function App() {
   const location = useLocation()
   const [showCreateTask, setShowCreateTask] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
   const [previewTask, setPreviewTask] = useState<Task | null>(null)
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const { createTask, completeTask, deleteTask, startTask, snoozeTask, updateTask } = useTaskContext()
@@ -41,9 +45,9 @@ export function App() {
         setShowSearch(s => !s)
       }
       // Close search/preview on Escape handled inside those modals
-      if (!isTyping && !e.metaKey && !e.ctrlKey && e.key === 'Escape') {
-        setPreviewTask(null)
-        setShowSearch(false)
+      if (!isTyping && !e.metaKey && !e.ctrlKey) {
+        if (e.key === 'Escape') { setPreviewTask(null); setShowSearch(false); setShowShortcuts(false) }
+        if (e.key === '?') setShowShortcuts(s => !s)
       }
     }
     window.addEventListener('keydown', handler)
@@ -70,6 +74,8 @@ export function App() {
               <Route path="/stats" element={<StatsView />} />
               <Route path="/shame" element={<ShameLogView />} />
               <Route path="/settings" element={<SettingsView />} />
+              <Route path="/review" element={<WeeklyReviewView />} />
+              <Route path="/project/:projectId" element={<ProjectView />} />
             </Routes>
           </AnimatePresence>
         </main>
@@ -86,6 +92,7 @@ export function App() {
       </Dialog>
 
       <CommandPalette onCreateTask={() => setShowCreateTask(true)} />
+      <ShortcutHelp open={showShortcuts} onClose={() => setShowShortcuts(false)} />
 
       <SearchModal
         open={showSearch}

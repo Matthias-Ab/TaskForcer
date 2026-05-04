@@ -11,6 +11,7 @@ import { registerShameIpc } from './ipc/shame'
 import { registerScoresIpc, calculateTodayScore } from './ipc/scores'
 import { registerSettingsIpc } from './ipc/settings'
 import { registerTemplatesIpc } from './ipc/templates'
+import { registerProjectsIpc } from './ipc/projects'
 import { registerForcingIpc, startIdleDetection, setupEndOfDayGuard } from './forcing'
 import { registerFocusIpc } from './focus-tracker'
 import { initScheduler } from './scheduler'
@@ -159,6 +160,7 @@ app.whenReady().then(async () => {
   registerScoresIpc()
   registerSettingsIpc()
   registerTemplatesIpc()
+  registerProjectsIpc()
   registerForcingIpc()
   registerWidgetIpc()
   registerFocusIpc()

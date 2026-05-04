@@ -104,7 +104,27 @@ function migrate(db) {
     CREATE INDEX IF NOT EXISTS idx_daily_scores_date ON daily_scores(date DESC);
     CREATE INDEX IF NOT EXISTS idx_xp_log_created ON xp_log(created_at DESC);
   `);
+    // Projects table
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL DEFAULT '#6366f1',
+      emoji TEXT DEFAULT '',
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
+  `);
     // Migrations for existing DBs
+    const taskCols = db.prepare(`PRAGMA table_info(tasks)`).all().map(c => c.name);
+    if (!taskCols.includes('project_id'))
+        db.exec(`ALTER TABLE tasks ADD COLUMN project_id TEXT REFERENCES projects(id)`);
+    if (!taskCols.includes('sort_order'))
+        db.exec(`ALTER TABLE tasks ADD COLUMN sort_order INTEGER DEFAULT 0`);
+    if (!taskCols.includes('blocked_by'))
+        db.exec(`ALTER TABLE tasks ADD COLUMN blocked_by TEXT DEFAULT '[]'`);
+    if (!taskCols.includes('elapsed_seconds'))
+        db.exec(`ALTER TABLE tasks ADD COLUMN elapsed_seconds INTEGER DEFAULT 0`);
     const cols = db.prepare(`PRAGMA table_info(daily_scores)`).all().map(c => c.name);
     if (!cols.includes('freeze_used')) {
         db.exec(`ALTER TABLE daily_scores ADD COLUMN freeze_used INTEGER DEFAULT 0`);

@@ -12,6 +12,10 @@ function parseTask(row) {
         allowed_urls: JSON.parse(row.allowed_urls || '[]'),
         distraction_apps: JSON.parse(row.distraction_apps || '[]'),
         tags: JSON.parse(row.tags || '[]'),
+        blocked_by: JSON.parse(row.blocked_by || '[]'),
+        project_id: row.project_id || null,
+        sort_order: row.sort_order || 0,
+        elapsed_seconds: row.elapsed_seconds || 0,
     };
 }
 function registerTaskIpc() {
@@ -127,6 +131,19 @@ function registerTaskIpc() {
     electron_1.ipcMain.handle('tasks:snooze', (_e, id, minutes) => {
         const snoozeUntil = Date.now() + minutes * 60 * 1000;
         (0, db_1.getDb)().prepare(`UPDATE tasks SET status = 'snoozed', due_at = ? WHERE id = ?`).run(snoozeUntil, id);
+        return { ok: true };
+    });
+    electron_1.ipcMain.handle('tasks:reorder', (_e, orderedIds) => {
+        const db = (0, db_1.getDb)();
+        const update = db.prepare('UPDATE tasks SET sort_order = ? WHERE id = ?');
+        const tx = db.transaction(() => {
+            orderedIds.forEach((id, i) => update.run(i, id));
+        });
+        tx();
+        return { ok: true };
+    });
+    electron_1.ipcMain.handle('tasks:log-elapsed', (_e, id, seconds) => {
+        (0, db_1.getDb)().prepare('UPDATE tasks SET elapsed_seconds = elapsed_seconds + ? WHERE id = ?').run(seconds, id);
         return { ok: true };
     });
     electron_1.ipcMain.handle('tasks:upcoming', () => {

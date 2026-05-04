@@ -35,7 +35,11 @@ function Widget() {
   useEffect(() => {
     ipc.on('widget:update-task', (...args: unknown[]) => {
       const payload = args[0] as { taskId: string | null; taskTitle: string | null }
-      setTaskId(payload.taskId)
+      // Log elapsed for the previous task before switching
+      setTaskId(prev => {
+        if (prev && elapsed > 0) ipc.invoke('tasks:log-elapsed', prev, elapsed).catch(() => {})
+        return payload.taskId
+      })
       setTaskTitle(payload.taskTitle)
       if (payload.taskId) {
         startTimeRef.current = Date.now()
@@ -93,6 +97,8 @@ function Widget() {
 
   async function complete() {
     if (!taskId) return
+    // Log elapsed time before completing
+    if (elapsed > 0) await ipc.invoke('tasks:log-elapsed', taskId, elapsed)
     await ipc.invoke('tasks:complete', taskId)
     await ipc.invoke('task:stopped')
     setTaskTitle(null); setTaskId(null); setRunning(false); setPomoDone(false)

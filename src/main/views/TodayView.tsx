@@ -1,8 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import {
+  DndContext, closestCenter, PointerSensor, KeyboardSensor,
+  useSensor, useSensors, DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy,
+  useSortable, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useTaskContext } from '@/contexts/TaskContext'
 import { useTemplates } from '@/hooks/useTemplates'
 import { TaskCard } from '@/components/TaskCard'
+import { QuickCapture } from '@/components/QuickCapture'
 import { CreateTaskForm } from '@/components/CreateTaskForm'
 import { EditTaskForm } from '@/components/EditTaskForm'
 import { TaskPreviewModal } from '@/components/TaskPreviewModal'
@@ -11,7 +21,7 @@ import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { Task } from '@/hooks/useTasks'
 import { ipc } from '@/lib/ipc'
-import { pageTransition, listItem } from '@/lib/animations'
+import { pageTransition } from '@/lib/animations'
 import { CheckSquare2, AlertTriangle, Circle, CheckCheck, Trash2, ChevronDown, Siren, ChevronRight } from 'lucide-react'
 
 const PRIORITY_OPTIONS: { label: string; value: Task['priority'] }[] = [
@@ -229,7 +239,7 @@ export function TodayView() {
           </>
         )}
 
-        <CreateTaskForm onSubmit={createTask} compact />
+        <QuickCapture onSubmit={createTask} />
       </div>
 
       {/* Create task modal */}
@@ -308,10 +318,30 @@ interface TaskGroupProps {
 }
 
 function TaskGroup({
-  label, icon, tasks, selectedIds, selectionMode, subtaskCounts,
+  label, icon, tasks: initialTasks, selectedIds, selectionMode, subtaskCounts,
   onSelect, onComplete, onStart, onSnooze, onDelete, onEdit, onPreview, onSaveTemplate, collapsed = false,
 }: TaskGroupProps) {
   const [open, setOpen] = useState(!collapsed)
+  const [tasks, setTasks] = useState(initialTasks)
+
+  // Sync when upstream tasks change (completions, etc.)
+  useEffect(() => { setTasks(initialTasks) }, [initialTasks])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = tasks.findIndex(t => t.id === active.id)
+    const newIndex = tasks.findIndex(t => t.id === over.id)
+    const reordered = arrayMove(tasks, oldIndex, newIndex)
+    setTasks(reordered)
+    await ipc.invoke('tasks:reorder', reordered.map(t => t.id))
+  }
+
   if (tasks.length === 0) return null
 
   return (
@@ -336,18 +366,12 @@ function TaskGroup({
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <motion.div className="space-y-1.5 pb-1" layout>
-              <AnimatePresence initial={false}>
-                {tasks.map(task => (
-                  <motion.div
-                    key={task.id}
-                    variants={listItem}
-                    initial="hidden"
-                    animate="visible"
-                    exit="exit"
-                    layout
-                  >
-                    <TaskCard
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-1.5 pb-1">
+                  {tasks.map(task => (
+                    <SortableTaskCard
+                      key={task.id}
                       task={task}
                       selected={selectedIds.has(task.id)}
                       selectionMode={selectionMode}
@@ -362,13 +386,27 @@ function TaskGroup({
                       onPreview={onPreview}
                       onSaveTemplate={onSaveTemplate}
                     />
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </motion.div>
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  )
+}
+
+function SortableTaskCard(props: Parameters<typeof TaskCard>[0]) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.task.id })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      {...attributes}
+      {...listeners}
+    >
+      <TaskCard {...props} />
     </div>
   )
 }
