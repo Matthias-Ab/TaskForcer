@@ -144,7 +144,16 @@ function runMigrations(db: import('better-sqlite3').Database): void {
   ).get() as { version: number }
 
   for (let i = version; i < MIGRATIONS.length; i++) {
-    db.exec(MIGRATIONS[i])
+    try {
+      db.exec(MIGRATIONS[i])
+    } catch (err: unknown) {
+      // Tolerate "duplicate column name" and "index already exists" — these mean
+      // the migration already applied outside the versioning system (old installs).
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!msg.includes('duplicate column name') && !msg.includes('already exists')) {
+        throw err
+      }
+    }
     db.prepare(`INSERT INTO schema_version VALUES (?)`).run(i + 1)
   }
 }
