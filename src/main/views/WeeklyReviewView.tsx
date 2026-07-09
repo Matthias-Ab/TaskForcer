@@ -22,7 +22,7 @@ export function WeeklyReviewView() {
     ipc.invoke<Task[]>('tasks:list').then(all => {
       setTasks(all.filter(t => t.created_at >= weekAgo || (t.completed_at && t.completed_at >= weekAgo)))
       setLoading(false)
-    })
+    }).catch(() => setLoading(false))
   }, [])
 
   const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000

@@ -1,9 +1,7 @@
 import { app, safeStorage } from 'electron'
 import path from 'path'
 import fs from 'fs'
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const Database = require('better-sqlite3') as typeof import('better-sqlite3')
+import log from 'electron-log/main'
 
 let DB_DIR: string
 let DB_PATH: string
@@ -16,18 +14,49 @@ export function getDb() {
   return db
 }
 
-export function initDb(): void {
+function isCorruptionError(err: unknown): boolean {
+  const code = (err as { code?: string } | undefined)?.code
+  const message = (err instanceof Error ? err.message : String(err)) || ''
+  return code === 'SQLITE_NOTADB' || code === 'SQLITE_CORRUPT' ||
+    /not a database|malformed/i.test(message)
+}
+
+function quarantineDbFiles(): string {
+  const suffix = `.corrupt-${Date.now()}`
+  for (const ext of ['', '-shm', '-wal']) {
+    const p = DB_PATH + ext
+    if (fs.existsSync(p)) fs.renameSync(p, p + suffix)
+  }
+  return DB_PATH + suffix
+}
+
+export function initDb(): { recoveredFromCorruption: boolean; quarantinePath?: string } {
   DB_DIR = path.join(app.getPath('home'), '.taskforcer')
   DB_PATH = path.join(DB_DIR, 'taskforcer.db')
 
   if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true })
 
-  db = new Database(DB_PATH)
-  db.pragma('journal_mode = WAL')
-  db.pragma('foreign_keys = ON')
-  db.pragma('wal_autocheckpoint = 1000')
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const Database = require('better-sqlite3') as typeof import('better-sqlite3')
 
-  db.transaction(() => migrate(db))()
+  function open(): void {
+    db = new Database(DB_PATH)
+    db.pragma('journal_mode = WAL')
+    db.pragma('foreign_keys = ON')
+    db.pragma('wal_autocheckpoint = 1000')
+    db.transaction(() => migrate(db))()
+  }
+
+  try {
+    open()
+    return { recoveredFromCorruption: false }
+  } catch (err) {
+    if (!isCorruptionError(err)) throw err
+    log.error('Database appears corrupted, quarantining and starting fresh:', err)
+    const quarantinePath = quarantineDbFiles()
+    open()
+    return { recoveredFromCorruption: true, quarantinePath }
+  }
 }
 
 // ---------------------------------------------------------------------------

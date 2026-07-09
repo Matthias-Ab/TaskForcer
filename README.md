@@ -31,8 +31,7 @@ An aggressive productivity desktop app that uses behavioral forcing mechanics to
 ```bash
 git clone <repo>
 cd TaskForcer
-npm install
-npx @electron/rebuild   # rebuilds better-sqlite3 + active-win for your Electron version
+npm install   # postinstall automatically rebuilds better-sqlite3 + active-win for your Electron version
 ```
 
 ## Development

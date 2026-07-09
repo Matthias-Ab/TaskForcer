@@ -1,7 +1,12 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import log from 'electron-log/main'
 import { initDb, getSetting } from './db'
+
+// Logs uncaught exceptions/rejections to disk and shows an error dialog instead
+// of silently dying (default behavior for the main process).
+log.errorHandler.startCatching()
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const AutoLaunch = require('auto-launch')
@@ -66,6 +71,17 @@ function createMainWindow(): BrowserWindow {
   mainWindow.on('closed', () => { mainWindow = null })
   mainWindow.on('maximize', () => mainWindow?.webContents.send('window:maximize-changed', true))
   mainWindow.on('unmaximize', () => mainWindow?.webContents.send('window:maximize-changed', false))
+
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    log.error('Renderer process gone:', details)
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    if (isDev) mainWindow.loadURL('http://localhost:5173')
+    else mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
+  })
+
+  mainWindow.webContents.on('unresponsive', () => {
+    log.warn('Main window renderer became unresponsive')
+  })
 
   return mainWindow
 }
@@ -157,7 +173,31 @@ function registerMainIpc(): void {
 app.whenReady().then(async () => {
   if (!gotSingleInstanceLock) return
 
-  initDb()
+  let dbInit: { recoveredFromCorruption: boolean; quarantinePath?: string }
+  try {
+    dbInit = initDb()
+  } catch (err) {
+    log.error('Failed to initialize database:', err)
+    dialog.showErrorBox(
+      'TaskForcer failed to start',
+      `The local database could not be opened, and TaskForcer cannot continue.\n\n` +
+      `${err instanceof Error ? err.message : String(err)}\n\n` +
+      `If this keeps happening after reinstalling, check the log file for details.`
+    )
+    app.quit()
+    return
+  }
+
+  if (dbInit.recoveredFromCorruption) {
+    dialog.showMessageBoxSync({
+      type: 'warning',
+      title: 'TaskForcer data was reset',
+      message: 'Your local database file appeared to be corrupted, so TaskForcer started fresh with a new one.',
+      detail: dbInit.quarantinePath
+        ? `The old file was kept for inspection at:\n${dbInit.quarantinePath}`
+        : undefined,
+    })
+  }
 
   // Apply auto-launch setting
   const autoLaunchEnabled = getSetting('auto_launch') === 'true'
@@ -202,6 +242,10 @@ app.whenReady().then(async () => {
     if (!mainWindow) createMainWindow()
     else { mainWindow.show(); mainWindow.focus() }
   })
+}).catch((err) => {
+  log.error('Fatal error during startup:', err)
+  dialog.showErrorBox('TaskForcer failed to start', err instanceof Error ? err.message : String(err))
+  app.quit()
 })
 
 app.on('window-all-closed', () => {

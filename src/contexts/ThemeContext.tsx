@@ -20,7 +20,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         setTheme(saved)
         document.documentElement.setAttribute('data-theme', saved)
       }
-    })
+    }).catch(() => {})
   }, [])
 
   function toggleTheme() {

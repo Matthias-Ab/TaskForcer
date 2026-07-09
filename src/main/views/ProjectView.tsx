@@ -40,7 +40,7 @@ export function ProjectView() {
     ipc.invoke<Task[]>('projects:tasks', projectId).then(data => {
       setTasks(data)
       setLoading(false)
-    })
+    }).catch(() => setLoading(false))
   }, [projectId])
 
   useEffect(() => {

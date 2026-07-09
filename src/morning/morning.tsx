@@ -16,7 +16,7 @@ function MorningPopup() {
     ipc.invoke<Task[]>('tasks:today').then(t => {
       setTasks(t.filter(task => task.priority === 'critical' || task.priority === 'medium'))
       setLoading(false)
-    })
+    }).catch(() => setLoading(false))
   }, [])
 
   const critical = tasks.filter(t => t.priority === 'critical')

@@ -24,7 +24,7 @@ export function SearchModal({ open, onClose, onPreview }: SearchModalProps) {
 
   useEffect(() => {
     if (open) {
-      ipc.invoke<Task[]>('tasks:list').then(setAllTasks)
+      ipc.invoke<Task[]>('tasks:list').then(setAllTasks).catch(() => {})
       setQuery('')
       setSelected(0)
       setTimeout(() => inputRef.current?.focus(), 50)

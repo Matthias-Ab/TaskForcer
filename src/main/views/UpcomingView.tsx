@@ -15,7 +15,7 @@ export function UpcomingView() {
     ipc.invoke<Task[]>('tasks:upcoming').then(data => {
       setTasks(data)
       setLoading(false)
-    })
+    }).catch(() => setLoading(false))
   }, [])
 
   const overdue = tasks.filter(t => t.due_at && t.due_at < Date.now())

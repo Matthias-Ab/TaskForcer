@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { useRef } from 'react'
 import { useSettings } from '@/hooks/useSettings'
 import { useTheme } from '@/contexts/ThemeContext'
 import { pageTransition } from '@/lib/animations'
@@ -6,11 +7,12 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { ipc } from '@/lib/ipc'
 import { toast } from 'sonner'
-import { Download, Trash2, RefreshCw, Sun, Moon } from 'lucide-react'
+import { Download, Upload, Trash2, RefreshCw, Sun, Moon } from 'lucide-react'
 
 export function SettingsView() {
   const { settings, loading, setSetting } = useSettings()
   const { theme, toggleTheme } = useTheme()
+  const importInputRef = useRef<HTMLInputElement>(null)
 
   if (loading) return null
 
@@ -25,6 +27,21 @@ export function SettingsView() {
     a.click()
     URL.revokeObjectURL(url)
     toast.success('Data exported!')
+  }
+
+  async function importData(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!confirm('Importing will REPLACE all current tasks, sessions, scores, and settings with the contents of this file. This cannot be undone. Continue?')) return
+    try {
+      const payload = JSON.parse(await file.text())
+      await ipc.invoke('settings:import', payload)
+      toast.success('Data imported — reloading...')
+      setTimeout(() => window.location.reload(), 800)
+    } catch (err) {
+      toast.error(`Import failed: ${err instanceof Error ? err.message : 'invalid file'}`)
+    }
   }
 
   async function clearShameLog() {
@@ -159,6 +176,11 @@ export function SettingsView() {
             <Button variant="secondary" size="sm" onClick={exportData}>
               <Download size={14} />
               Export JSON
+            </Button>
+            <input ref={importInputRef} type="file" accept="application/json" className="hidden" onChange={importData} />
+            <Button variant="secondary" size="sm" onClick={() => importInputRef.current?.click()}>
+              <Upload size={14} />
+              Import JSON
             </Button>
             <Button variant="ghost" size="sm" onClick={clearShameLog} className="!text-red-500">
               <Trash2 size={14} />

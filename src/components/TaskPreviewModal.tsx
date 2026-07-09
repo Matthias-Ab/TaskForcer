@@ -39,7 +39,7 @@ export function TaskPreviewModal({
   useEffect(() => {
     if (!task) return
     setSubtasks([])
-    getSubtasks(task.id).then(setSubtasks)
+    getSubtasks(task.id).then(setSubtasks).catch(() => {})
   }, [task?.id])
 
   useEffect(() => {
