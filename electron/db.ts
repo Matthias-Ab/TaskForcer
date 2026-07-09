@@ -173,6 +173,7 @@ function seedSettings(db: import('better-sqlite3').Database): void {
     sound_enabled: 'true',
     focus_tracking: 'true',
     shame_log_public: 'false',
+    roast_mode: 'true',
   }
   const insert = db.prepare(`INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)`)
   for (const [k, v] of Object.entries(defaults)) insert.run(k, v)

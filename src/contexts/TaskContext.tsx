@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { ipc } from '@/lib/ipc'
 import { toast } from 'sonner'
 import { Task } from '@/hooks/useTasks'
@@ -28,6 +28,11 @@ const TaskContext = createContext<TaskContextValue | null>(null)
 export function TaskProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
+  // Lets mutation callbacks read the latest tasks without depending on `tasks`,
+  // so their identity stays stable and memoized TaskCard/SortableTaskCard rows
+  // don't re-render on every unrelated task's mutation.
+  const tasksRef = useRef<Task[]>(tasks)
+  useEffect(() => { tasksRef.current = tasks }, [tasks])
 
   const reload = useCallback(async () => {
     const data = await ipc.invoke<Task[]>('tasks:today')
@@ -73,7 +78,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const updateTask = useCallback(async (id: string, data: Partial<Task>): Promise<Task | null> => {
-    const prev = tasks.find(t => t.id === id)
+    const prev = tasksRef.current.find(t => t.id === id)
     setTasks(ts => ts.map(t => t.id === id ? { ...t, ...data } : t))
     try {
       const updated = await ipc.invoke<Task>('tasks:update', id, data)
@@ -84,10 +89,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       toast.error('Failed to update task')
       return null
     }
-  }, [tasks])
+  }, [])
 
   const completeTask = useCallback(async (id: string) => {
-    const wasInProgress = tasks.find(t => t.id === id)?.status === 'in_progress'
+    const wasInProgress = tasksRef.current.find(t => t.id === id)?.status === 'in_progress'
     setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'completed' as const } : t))
     try {
       await ipc.invoke('tasks:complete', id)
@@ -98,10 +103,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'pending' as const } : t))
       toast.error('Failed to complete task')
     }
-  }, [tasks])
+  }, [])
 
   const startTask = useCallback(async (id: string): Promise<Task | null> => {
-    const task = tasks.find(t => t.id === id)
+    const task = tasksRef.current.find(t => t.id === id)
     setTasks(prev => prev.map(t =>
       t.id === id ? { ...t, status: 'in_progress' as const } :
       t.status === 'in_progress' ? { ...t, status: 'pending' as const } : t
@@ -120,10 +125,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       toast.error('Failed to start task')
       return null
     }
-  }, [tasks])
+  }, [])
 
   const snoozeTask = useCallback(async (id: string, minutes = 30) => {
-    const task = tasks.find(t => t.id === id)
+    const task = tasksRef.current.find(t => t.id === id)
     const wasInProgress = task?.status === 'in_progress'
     setTasks(prev => prev.filter(t => t.id !== id))
     try {
@@ -134,10 +139,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       if (task) setTasks(prev => [...prev, task])
       toast.error('Failed to snooze task')
     }
-  }, [tasks])
+  }, [])
 
   const deleteTask = useCallback(async (id: string) => {
-    const task = tasks.find(t => t.id === id)
+    const task = tasksRef.current.find(t => t.id === id)
     const wasInProgress = task?.status === 'in_progress'
     setTasks(prev => prev.filter(t => t.id !== id))
     try {
@@ -147,10 +152,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       if (task) setTasks(prev => [...prev, task])
       toast.error('Failed to delete task')
     }
-  }, [tasks])
+  }, [])
 
   const deleteTasks = useCallback(async (ids: string[]) => {
-    const removed = tasks.filter(t => ids.includes(t.id))
+    const removed = tasksRef.current.filter(t => ids.includes(t.id))
     const hasActiveTask = removed.some(t => t.status === 'in_progress')
     setTasks(prev => prev.filter(t => !ids.includes(t.id)))
     try {
@@ -161,10 +166,10 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       setTasks(prev => [...prev, ...removed])
       toast.error('Failed to delete tasks')
     }
-  }, [tasks])
+  }, [])
 
   const completeTasks = useCallback(async (ids: string[]) => {
-    const hasActiveTask = tasks.some(t => ids.includes(t.id) && t.status === 'in_progress')
+    const hasActiveTask = tasksRef.current.some(t => ids.includes(t.id) && t.status === 'in_progress')
     setTasks(prev => prev.map(t => ids.includes(t.id) ? { ...t, status: 'completed' as const } : t))
     try {
       await Promise.all(ids.map(id => ipc.invoke('tasks:complete', id)))
@@ -175,7 +180,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       toast.error('Failed to complete tasks')
       reload()
     }
-  }, [tasks, reload])
+  }, [reload])
 
   const updateTasksPriority = useCallback(async (ids: string[], priority: Task['priority']) => {
     setTasks(prev => prev.map(t => ids.includes(t.id) ? { ...t, priority } : t))

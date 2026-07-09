@@ -41,6 +41,7 @@ function WinBtn({ onClick, icon, title, danger }: { onClick: () => void; icon: R
     <button
       onClick={onClick}
       title={title}
+      aria-label={title}
       className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-100 active:scale-90"
       style={{ color: 'var(--tf-text-muted)' }}
       onMouseEnter={e => {

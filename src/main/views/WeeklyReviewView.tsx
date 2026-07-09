@@ -72,7 +72,7 @@ export function WeeklyReviewView() {
         ) : (
           <>
             {/* Summary cards */}
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
               <ReviewCard label="Completed" value={String(completed.length)} icon={<CheckSquare2 size={15} className="text-emerald-400" />} color="text-emerald-400" />
               <ReviewCard label="Completion Rate" value={`${completionRate}%`} icon={<TrendingUp size={15} className="text-indigo-400" />} color="text-indigo-400" />
               <ReviewCard label="Missed" value={String(missed.length)} icon={<AlertTriangle size={15} className="text-red-400" />} color="text-red-400" />

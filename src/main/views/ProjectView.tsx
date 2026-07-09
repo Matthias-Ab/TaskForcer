@@ -16,7 +16,7 @@ import { useProjects } from '@/hooks/useProjects'
 import { useTaskContext } from '@/contexts/TaskContext'
 import { pageTransition } from '@/lib/animations'
 import { CreateTaskForm } from '@/components/CreateTaskForm'
-import { cn, formatDate, isOverdue } from '@/lib/utils'
+import { cn, formatDate, isOverdue, priorityDotColor } from '@/lib/utils'
 import { CheckSquare2, GripVertical, Pencil, Trash2, CheckCheck } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
@@ -206,9 +206,7 @@ function SortableTaskRow({ task, onComplete, onDelete }: { task: Task; onComplet
       </button>
       <button onClick={onComplete}
         className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 hover:border-emerald-500 transition-colors border-zinc-500" />
-      <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0',
-        task.priority === 'critical' ? 'bg-red-500' : task.priority === 'medium' ? 'bg-amber-400' : 'bg-zinc-500'
-      )} />
+      <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', priorityDotColor(task.priority))} />
       <span className="text-sm flex-1 truncate" style={{ color: overdue ? '#ef4444' : 'var(--tf-text)' }}>{task.title}</span>
       {task.due_at && <span className={cn('text-[10px]', overdue ? 'text-red-400' : '')} style={overdue ? {} : { color: 'var(--tf-text-faint)' }}>{formatDate(task.due_at)}</span>}
       <button onClick={onDelete} className="opacity-0 group-hover:opacity-100 transition-opacity p-1" style={{ color: 'var(--tf-text-faint)' }}

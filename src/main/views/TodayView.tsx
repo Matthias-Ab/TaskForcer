@@ -38,7 +38,7 @@ export function TodayView() {
   } = useTaskContext()
 
   const { saveTemplate: _saveTemplate } = useTemplates()
-  const saveTemplate = (task: Task, name: string) => _saveTemplate(name, task)
+  const saveTemplate = useCallback((task: Task, name: string) => _saveTemplate(name, task), [_saveTemplate])
 
   const [showCreate, setShowCreate] = useState(false)
   const [editingTask, setEditingTask] = useState<Task | null>(null)

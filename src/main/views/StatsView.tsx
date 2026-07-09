@@ -59,7 +59,7 @@ export function StatsView() {
 
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
         {/* Summary cards */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
           <StatCard
             label="Today's Score"
             value={today ? `${Math.round(today.score)}` : '--'}

@@ -37,18 +37,17 @@ export function debounce<T extends (...args: unknown[]) => unknown>(fn: T, delay
   }) as T
 }
 
-export function priorityColor(priority: string): string {
-  switch (priority) {
-    case 'critical': return 'text-red-500'
-    case 'medium': return 'text-amber-400'
-    default: return 'text-zinc-400'
-  }
-}
+export const SNOOZE_OPTIONS = [
+  { label: '15 min', minutes: 15 },
+  { label: '30 min', minutes: 30 },
+  { label: '1 hour', minutes: 60 },
+  { label: 'Tomorrow', minutes: 60 * 16 },
+]
 
-export function priorityBg(priority: string): string {
+export function priorityDotColor(priority: string): string {
   switch (priority) {
-    case 'critical': return 'bg-red-500/10 border-red-500/20'
-    case 'medium': return 'bg-amber-400/10 border-amber-400/20'
-    default: return 'bg-zinc-800/50 border-zinc-700/40'
+    case 'critical': return 'bg-red-500'
+    case 'medium': return 'bg-amber-400'
+    default: return 'bg-zinc-500'
   }
 }

@@ -1,16 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Play, Trash2, AlarmClock, Pencil, ChevronDown, Bookmark, ListTodo } from 'lucide-react'
 import { Task } from '@/hooks/useTasks'
-import { cn, formatDate, isOverdue } from '@/lib/utils'
+import { cn, formatDate, isOverdue, priorityDotColor, SNOOZE_OPTIONS } from '@/lib/utils'
 import { spring, checkmark } from '@/lib/animations'
-
-const SNOOZE_OPTIONS = [
-  { label: '15 min', minutes: 15 },
-  { label: '30 min', minutes: 30 },
-  { label: '1 hour', minutes: 60 },
-  { label: 'Tomorrow', minutes: 60 * 16 },
-]
+import { useOutsideClick } from '@/hooks/useOutsideClick'
 
 interface TaskCardProps {
   task: Task
@@ -28,7 +22,7 @@ interface TaskCardProps {
   onSaveTemplate?: (task: Task, name: string) => void
 }
 
-export function TaskCard({
+export const TaskCard = memo(function TaskCard({
   task, selected, selectionMode, subtaskCount, subtaskDone,
   onSelect, onComplete, onStart, onSnooze, onDelete, onEdit, onPreview, onSaveTemplate,
 }: TaskCardProps) {
@@ -42,15 +36,7 @@ export function TaskCard({
   const overdue = isOverdue(task.due_at) && task.status !== 'completed'
   const isInProgress = (task.status as string) === 'in_progress'
 
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (snoozeRef.current && !snoozeRef.current.contains(e.target as Node)) {
-        setShowSnooze(false)
-      }
-    }
-    if (showSnooze) document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [showSnooze])
+  useOutsideClick(snoozeRef, showSnooze, () => setShowSnooze(false))
 
   async function handleComplete() {
     if (selectionMode) { onSelect?.(task.id); return }
@@ -121,11 +107,7 @@ export function TaskCard({
       </button>
 
       {/* Priority dot */}
-      <div className={cn(
-        'w-1.5 h-1.5 rounded-full flex-shrink-0',
-        task.priority === 'critical' ? 'bg-red-500' :
-        task.priority === 'medium' ? 'bg-amber-400' : 'bg-zinc-500'
-      )} />
+      <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', priorityDotColor(task.priority))} />
 
       {/* Content */}
       <div className="flex-1 min-w-0">
@@ -307,7 +289,7 @@ export function TaskCard({
       </AnimatePresence>
     </motion.div>
   )
-}
+})
 
 function ActionBtn({
   onClick, title, danger, children,
@@ -321,6 +303,7 @@ function ActionBtn({
     <button
       onClick={onClick}
       title={title}
+      aria-label={title}
       className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
       style={{ color: danger ? '#ef4444' : 'var(--tf-text-muted)' }}
       onMouseEnter={e => {

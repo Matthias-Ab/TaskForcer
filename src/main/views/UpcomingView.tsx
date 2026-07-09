@@ -4,7 +4,7 @@ import { ipc } from '@/lib/ipc'
 import { Task } from '@/hooks/useTasks'
 import { pageTransition } from '@/lib/animations'
 import { TaskSkeletonList } from '@/components/ui/Skeleton'
-import { cn, formatDate, isOverdue } from '@/lib/utils'
+import { cn, formatDate, isOverdue, priorityDotColor } from '@/lib/utils'
 import { Clock, CheckSquare2, AlertTriangle, Circle, Siren } from 'lucide-react'
 
 export function UpcomingView() {
@@ -124,11 +124,7 @@ function UpcomingTaskRow({ task, overdue: isOverdueRow }: { task: Task; overdue?
         borderColor: overdue ? 'rgba(239,68,68,0.25)' : 'var(--tf-card-border)',
       }}
     >
-      <div className={cn(
-        'w-1.5 h-1.5 rounded-full flex-shrink-0',
-        task.priority === 'critical' ? 'bg-red-500' :
-        task.priority === 'medium' ? 'bg-amber-400' : 'bg-zinc-500'
-      )} />
+      <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', priorityDotColor(task.priority))} />
 
       <span className="text-sm flex-1 truncate" style={{ color: 'var(--tf-text)' }}>{task.title}</span>
 

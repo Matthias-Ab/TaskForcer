@@ -94,7 +94,7 @@ export function SearchModal({ open, onClose, onPreview }: SearchModalProps) {
                 style={{ color: 'var(--tf-text)' }}
               />
               {query && (
-                <button onClick={() => setQuery('')} style={{ color: 'var(--tf-text-faint)' }}>
+                <button onClick={() => setQuery('')} aria-label="Clear search" style={{ color: 'var(--tf-text-faint)' }}>
                   <X size={14} />
                 </button>
               )}

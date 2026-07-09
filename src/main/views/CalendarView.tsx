@@ -6,7 +6,7 @@ import { useTaskContext } from '@/contexts/TaskContext'
 import { CreateTaskForm } from '@/components/CreateTaskForm'
 import { Task } from '@/hooks/useTasks'
 import { pageTransition, spring, scaleIn } from '@/lib/animations'
-import { cn, formatDate, isOverdue } from '@/lib/utils'
+import { cn, formatDate, isOverdue, priorityDotColor } from '@/lib/utils'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -254,10 +254,7 @@ function DayTask({ task, onComplete }: { task: Task; onComplete: (id: string) =>
           </p>
         )}
       </div>
-      <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5',
-        task.priority === 'critical' ? 'bg-red-500' :
-        task.priority === 'medium' ? 'bg-amber-400' : 'bg-zinc-500'
-      )} />
+      <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5', priorityDotColor(task.priority))} />
     </div>
   )
 }

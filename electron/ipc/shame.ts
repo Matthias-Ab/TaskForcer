@@ -1,103 +1,6 @@
 import { ipcMain } from 'electron'
-import { getDb, getSetting } from '../db'
-import { randomUUID } from 'crypto'
-
-export interface ShameEntry {
-  id: string
-  type: 'distraction' | 'skipped_checkin' | 'missed_task' | 'late_completion' | 'excuse'
-  task_id: string | null
-  message: string
-  created_at: number
-}
-
-const ROASTS: Record<ShameEntry['type'], string[]> = {
-  distraction: [
-    'Incredible. You lasted {time} before your attention span gave up.',
-    'Your focus just filed a restraining order against you.',
-    'Another distraction? At this point just rename the task "Not Today".',
-    'Scientists are baffled by your ability to avoid work so efficiently.',
-    'You were supposed to be working. The internet thanks you though.',
-    'Your brain said "not now" and unfortunately your brain was in charge.',
-    'Some people chase their dreams. You chased a notification.',
-    'Congratulations on finding yet another way to not do the thing.',
-    'The task was right there. You walked past it like it owed you money.',
-    'Distracted again. At least you\'re consistent.',
-    'Ah yes, the classic "I\'ll start in 5 minutes" move. Bold.',
-    'Your attention span has left the building. It did not leave a note.',
-    'Another {time} of peak productivity, I\'m sure.',
-    'The squirrels in your head are running a marathon today.',
-    'History will not remember this moment of focus. Neither will you.',
-  ],
-  skipped_checkin: [
-    'Check-in skipped. Was the task too boring or were you just busy being distracted?',
-    'You ghosted your own task. Impressive commitment to avoidance.',
-    'Skipped another check-in. The task is starting to feel unloved.',
-    'Bold strategy — ignore the check-in and hope the task completes itself.',
-    "Check-in skipped on \"{task}\". It's fine. Everything is fine.",
-    'The check-in alarm rang. You looked at it. You chose chaos.',
-    'Skipping check-ins is how tasks become forgotten tasks.',
-    '"I\'ll check in later" said the person who never checked in.',
-    'The check-in was not optional. You made it optional. Respect, I guess.',
-    'One day you\'ll answer the check-in. Today was not that day.',
-  ],
-  missed_task: [
-    '"{task}" survived another day untouched. Legendary procrastination.',
-    'You let "{task}" die. Pour one out.',
-    '"{task}" has been waiting so long it\'s considering therapy.',
-    'Another day, another task sent to the graveyard. RIP "{task}".',
-    '"{task}" missed. Your ancestors are disappointed.',
-    '"{task}" had a deadline. The deadline came. The deadline left. You stayed home.',
-    'A moment of silence for "{task}", dead before its time.',
-    '"{task}" was never going to happen, was it? Deep down, you knew.',
-    'Future you now has to deal with "{task}". Future you is not happy.',
-    '"{task}" has officially outlived three of your to-do lists.',
-    'If procrastination were an Olympic sport, "{task}" would be your gold medal.',
-    '"{task}" has been rescheduled so many times it has seniority.',
-    'The task gods weep. "{task}" joins the eternal backlog.',
-    'Missed: "{task}". Reason: being a human with a lizard brain.',
-    '"{task}" is now a cautionary tale told to other tasks.',
-  ],
-  late_completion: [
-    'Better late than never — but barely.',
-    'Finished it! Only {time} after the deadline. Totally fine.',
-    'The task is done. The deadline is not fine, but the task is done.',
-    'Completed — fashionably late as always.',
-    'Done! The clock says you missed it. The clock is correct.',
-    'Late, but it happened. Technically a win. Barely.',
-    'The deadline was a suggestion and you treated it that way.',
-    '{time} late. Your project manager has developed a twitch.',
-    'Completed at last! The deadline\'s ghost applauds, sarcastically.',
-    'Done is done, even if done arrived long after it was due.',
-    'You finished it. A day late and a dollar short, but finished.',
-    'The task is done. What a journey. What a long, unnecessary journey.',
-    'Took a little longer than planned. By "a little" I mean significantly.',
-  ],
-  excuse: [
-    'Filed under: Convincing Nobody.',
-    'Noted. Still counts as a failure though.',
-    'Great excuse. 0/10 would not accept.',
-    'The excuse has been logged for posterity. And mockery.',
-    'A valiant attempt at justification. Unaccepted.',
-    'The reason has been noted and immediately disregarded.',
-    '"I had a good reason" — everyone who misses deadlines.',
-    'Classic. Truly a classic excuse. The judges are unmoved.',
-    'This excuse has been added to the Hall of Not Good Enough.',
-    'Logged, catalogued, and gently mocked for future generations.',
-    'The excuse was heard. The excuse was evaluated. The excuse failed.',
-    'Reasons are like opinions — everyone has one, nobody cares.',
-    'This one\'s going in the "sure, buddy" pile.',
-    'Bold of you to explain yourself to a productivity app.',
-    'The record shows: an excuse was given. The record is not impressed.',
-  ],
-}
-
-function getRoast(type: ShameEntry['type'], context?: string): string {
-  const pool = ROASTS[type]
-  const template = pool[Math.floor(Math.random() * pool.length)]
-  return template
-    .replace('{task}', context || 'the task')
-    .replace('{time}', context || 'a few minutes')
-}
+import { getDb } from '../db'
+import { addShameEntry, ShameEntry } from '../forcing'
 
 export function registerShameIpc(): void {
   ipcMain.handle('shame:list', (_e, limit = 200, offset = 0) => {
@@ -107,15 +10,7 @@ export function registerShameIpc(): void {
   })
 
   ipcMain.handle('shame:add', (_e, entry: Omit<ShameEntry, 'id' | 'created_at'>) => {
-    const db = getDb()
-    const id = randomUUID()
-    const created_at = Date.now()
-    const roastMode = getSetting('roast_mode') === 'true'
-    const message = roastMode ? getRoast(entry.type, entry.task_id ? undefined : entry.message) : entry.message
-    db.prepare(
-      'INSERT INTO shame_log (id, type, task_id, message, created_at) VALUES (?, ?, ?, ?, ?)'
-    ).run(id, entry.type, entry.task_id ?? null, message, created_at)
-    return { id, ...entry, message, created_at }
+    return addShameEntry(entry)
   })
 
   ipcMain.handle('shame:clear', () => {

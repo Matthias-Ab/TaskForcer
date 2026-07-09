@@ -2,49 +2,44 @@ import { BrowserWindow, ipcMain, powerMonitor, Notification, app } from 'electro
 import { getDb, getSetting } from './db'
 import { calculateTodayScore } from './ipc/scores'
 import { randomUUID } from 'crypto'
+import { getRoast, ShameType } from './roasts'
 
 let checkinInterval: ReturnType<typeof setInterval> | null = null
 let idleCheckInterval: ReturnType<typeof setInterval> | null = null
 let activeTaskId: string | null = null
 
-const ROASTS: Record<string, string[]> = {
-  distraction: [
-    'Incredible. You were distracted again.',
-    'Your focus just filed a restraining order against you.',
-    'Another distraction. The internet thanks you.',
-    'Scientists are baffled by your ability to avoid work so efficiently.',
-  ],
-  skipped_checkin: [
-    'Check-in skipped. Ghosting your own task — impressive.',
-    'Bold strategy: ignore the check-in and hope it completes itself.',
-    'Skipped another check-in. The task feels unloved.',
-  ],
-  missed_task: [
-    'Task missed. Your ancestors are disappointed.',
-    'Another task sent to the graveyard. RIP.',
-    'Survived another day untouched. Legendary procrastination.',
-  ],
-  late_completion: ['Better late than never — but barely.', 'Done! The deadline disagrees.'],
-  excuse: ['Filed under: Convincing Nobody.', 'Noted. Still counts as a failure though.'],
+export interface ShameEntry {
+  id: string
+  type: ShameType
+  task_id: string | null
+  message: string
+  created_at: number
 }
 
-function roastMessage(type: string, original: string): string {
-  const pool = ROASTS[type]
-  if (!pool) return original
-  return pool[Math.floor(Math.random() * pool.length)]
-}
+// Only these categories use the {task} placeholder in their roast templates
+const TASK_CONTEXT_TYPES = new Set<ShameType>(['skipped_checkin', 'missed_task'])
 
 export function addShameEntry(entry: {
-  type: 'distraction' | 'skipped_checkin' | 'missed_task' | 'late_completion' | 'excuse'
+  type: ShameType
   task_id?: string | null
   message: string
-}): void {
+}): ShameEntry {
   const db = getDb()
   const roastMode = getSetting('roast_mode') === 'true'
-  const message = roastMode ? roastMessage(entry.type, entry.message) : entry.message
+
+  let context: string | undefined
+  if (roastMode && entry.task_id && TASK_CONTEXT_TYPES.has(entry.type)) {
+    const task = db.prepare('SELECT title FROM tasks WHERE id = ?').get(entry.task_id) as { title: string } | undefined
+    context = task?.title
+  }
+  const message = roastMode ? getRoast(entry.type, context) : entry.message
+
+  const id = randomUUID()
+  const created_at = Date.now()
   db.prepare(
     'INSERT INTO shame_log (id, type, task_id, message, created_at) VALUES (?, ?, ?, ?, ?)'
-  ).run(randomUUID(), entry.type, entry.task_id ?? null, message, Date.now())
+  ).run(id, entry.type, entry.task_id ?? null, message, created_at)
+  return { id, type: entry.type, task_id: entry.task_id ?? null, message, created_at }
 }
 
 export function startCheckinSchedule(taskId: string): void {
@@ -80,12 +75,12 @@ export function startIdleDetection(): void {
       const hasCritical = db.prepare(
         "SELECT 1 FROM tasks WHERE priority='critical' AND status NOT IN ('completed','cancelled') LIMIT 1"
       ).get()
-      if (hasCritical) escalateIdleNag(idleSeconds)
+      if (hasCritical) escalateIdleNag(idleSeconds, thresholdMin)
     }
   }, 60 * 1000)
 }
 
-function escalateIdleNag(idleSeconds: number): void {
+function escalateIdleNag(idleSeconds: number, thresholdMin: number): void {
   const mins = Math.floor(idleSeconds / 60)
   if (Notification.isSupported()) {
     new Notification({
@@ -93,7 +88,8 @@ function escalateIdleNag(idleSeconds: number): void {
       body: `You've been idle for ${mins} minutes.`,
     }).show()
   }
-  if (idleSeconds >= 20 * 60) {
+  // Bring the window to the front once idle time doubles the configured threshold
+  if (idleSeconds >= thresholdMin * 2 * 60) {
     const mainWin = BrowserWindow.getAllWindows().find(w => !w.isDestroyed())
     if (mainWin) {
       mainWin.show()

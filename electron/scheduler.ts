@@ -40,9 +40,14 @@ interface RecurringTask {
   due_at: number | null
 }
 
-function nextDueDate(rule: string, fromDate = new Date()): Date | null {
+function nextDueDate(rule: string, fromDate: Date, originalDueAt: number | null): Date | null {
   const next = new Date(fromDate)
-  next.setHours(9, 0, 0, 0)
+  if (originalDueAt !== null) {
+    const orig = new Date(originalDueAt)
+    next.setHours(orig.getHours(), orig.getMinutes(), 0, 0)
+  } else {
+    next.setHours(9, 0, 0, 0)
+  }
 
   if (rule === 'daily') {
     next.setDate(next.getDate() + 1)
@@ -66,16 +71,24 @@ function nextDueDate(rule: string, fromDate = new Date()): Date | null {
   return null
 }
 
-export function spawnRecurringTasks(referenceDate?: Date): void {
+export function spawnRecurringTasks(referenceDate?: Date, onlyTaskId?: string): void {
   const db = getDb()
   const ref = referenceDate || new Date()
 
-  const recurring = db.prepare(
-    "SELECT * FROM tasks WHERE recurrence_rule IS NOT NULL AND status NOT IN ('cancelled') AND parent_task_id IS NULL"
-  ).all() as RecurringTask[]
+  let recurring: RecurringTask[]
+  if (onlyTaskId) {
+    const row = db.prepare(
+      "SELECT * FROM tasks WHERE id = ? AND recurrence_rule IS NOT NULL AND status NOT IN ('cancelled') AND parent_task_id IS NULL"
+    ).get(onlyTaskId) as RecurringTask | undefined
+    recurring = row ? [row] : []
+  } else {
+    recurring = db.prepare(
+      "SELECT * FROM tasks WHERE recurrence_rule IS NOT NULL AND status NOT IN ('cancelled') AND parent_task_id IS NULL"
+    ).all() as RecurringTask[]
+  }
 
   for (const task of recurring) {
-    const due = nextDueDate(task.recurrence_rule, ref)
+    const due = nextDueDate(task.recurrence_rule, ref, task.due_at)
     if (!due) continue
 
     const dateStr = due.toISOString().split('T')[0]
@@ -103,10 +116,7 @@ export function spawnRecurringTasks(referenceDate?: Date): void {
 
 // Called from tasks:complete IPC when the completed task has a recurrence_rule
 export function spawnNextRecurrence(taskId: string): void {
-  const db = getDb()
-  const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskId) as RecurringTask | undefined
-  if (!task?.recurrence_rule) return
-  spawnRecurringTasks(new Date())
+  spawnRecurringTasks(new Date(), taskId)
 }
 
 function checkMissedTasks(): void {

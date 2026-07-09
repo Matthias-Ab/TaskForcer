@@ -8,16 +8,10 @@ import {
 } from 'lucide-react'
 import { Task } from '@/hooks/useTasks'
 import { useTaskContext } from '@/contexts/TaskContext'
-import { cn, formatDate, isOverdue } from '@/lib/utils'
+import { cn, formatDate, isOverdue, SNOOZE_OPTIONS } from '@/lib/utils'
 import { Button } from './ui/Button'
 import { useFocusTrap } from '@/hooks/useFocusTrap'
-
-const SNOOZE_OPTIONS = [
-  { label: '15 min', minutes: 15 },
-  { label: '30 min', minutes: 30 },
-  { label: '1 hour', minutes: 60 },
-  { label: 'Tomorrow', minutes: 60 * 16 },
-]
+import { useOutsideClick } from '@/hooks/useOutsideClick'
 
 interface TaskPreviewModalProps {
   task: Task | null
@@ -52,15 +46,7 @@ export function TaskPreviewModal({
     if (addingSubtask) setTimeout(() => subtaskInputRef.current?.focus(), 50)
   }, [addingSubtask])
 
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (snoozeRef.current && !snoozeRef.current.contains(e.target as Node)) {
-        setShowSnooze(false)
-      }
-    }
-    if (showSnooze) document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [showSnooze])
+  useOutsideClick(snoozeRef, showSnooze, () => setShowSnooze(false))
 
   if (!task) return null
 
@@ -176,6 +162,7 @@ export function TaskPreviewModal({
 
               <button
                 onClick={onClose}
+                aria-label="Close dialog"
                 className="mt-0.5 rounded-lg p-1 flex-shrink-0 transition-colors"
                 style={{ color: 'var(--tf-text-muted)' }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--tf-bg-tertiary)')}
@@ -294,6 +281,7 @@ export function TaskPreviewModal({
                         </span>
                         <button
                           onClick={() => handleDeleteSubtask(sub.id)}
+                          aria-label={`Delete subtask: ${sub.title}`}
                           className="opacity-0 group-hover:opacity-100 transition-opacity"
                           style={{ color: 'var(--tf-text-faint)' }}
                           onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
