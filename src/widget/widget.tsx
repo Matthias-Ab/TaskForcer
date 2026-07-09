@@ -27,17 +27,19 @@ function Widget() {
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const dragRef = useRef<{ startX: number; startY: number; winX: number; winY: number } | null>(null)
+  const elapsedRef = useRef(0)
+  useEffect(() => { elapsedRef.current = elapsed }, [elapsed])
 
   const clearTick = useCallback(() => {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
   }, [])
 
   useEffect(() => {
-    ipc.on('widget:update-task', (...args: unknown[]) => {
+    const handler = (...args: unknown[]) => {
       const payload = args[0] as { taskId: string | null; taskTitle: string | null }
       // Log elapsed for the previous task before switching
       setTaskId(prev => {
-        if (prev && elapsed > 0) ipc.invoke('tasks:log-elapsed', prev, elapsed).catch(() => {})
+        if (prev && elapsedRef.current > 0) ipc.invoke('tasks:log-elapsed', prev, elapsedRef.current).catch(() => {})
         return payload.taskId
       })
       setTaskTitle(payload.taskTitle)
@@ -52,7 +54,9 @@ function Widget() {
         setRunning(false)
         setPomoDone(false)
       }
-    })
+    }
+    ipc.on('widget:update-task', handler)
+    return () => ipc.off('widget:update-task', handler)
   }, [])
 
   useEffect(() => {
@@ -108,7 +112,7 @@ function Widget() {
 
   function handleMouseDown(e: React.MouseEvent) {
     if ((e.target as HTMLElement).tagName === 'BUTTON' || (e.target as HTMLElement).closest('button')) return
-    dragRef.current = { startX: e.screenX, startY: e.screenY, winX: 0, winY: 0 }
+    dragRef.current = { startX: e.screenX, startY: e.screenY, winX: window.screenX, winY: window.screenY }
   }
   function handleMouseMove(e: React.MouseEvent) {
     if (!dragRef.current) return

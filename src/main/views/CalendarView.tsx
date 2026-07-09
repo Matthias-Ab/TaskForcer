@@ -14,8 +14,11 @@ export function CalendarView() {
   const [current, setCurrent] = useState(new Date())
   const [direction, setDirection] = useState(0)
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
-  const { tasks } = useAllTasks()
-  const { createTask, completeTask } = useTaskContext()
+  const { tasks, reload: reloadTasks } = useAllTasks()
+  const { createTask: createTaskCtx, completeTask: completeTaskCtx } = useTaskContext()
+
+  const completeTask = async (id: string) => { await completeTaskCtx(id); await reloadTasks() }
+  const createTask = async (data: Partial<Task>) => { const t = await createTaskCtx(data); await reloadTasks(); return t }
 
   const year = current.getFullYear()
   const month = current.getMonth()

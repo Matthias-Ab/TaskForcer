@@ -103,11 +103,18 @@ function escalateIdleNag(idleSeconds: number): void {
   }
 }
 
-export function setupEndOfDayGuard(win: BrowserWindow): void {
+let endOfDayGuardRegistered = false
+
+export function setupEndOfDayGuard(): void {
+  if (endOfDayGuardRegistered) return
+  endOfDayGuardRegistered = true
+
   app.on('before-quit', (e) => {
     const hour = new Date().getHours()
     const threshold = parseInt(getSetting('lockout_threshold') || '50', 10)
     if (hour < 18) return
+    const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed())
+    if (!win) return
     try {
       const score = calculateTodayScore()
       if (score.score < threshold) {

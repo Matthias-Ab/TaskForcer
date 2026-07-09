@@ -1,14 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ipc } from '@/lib/ipc'
 import { Button } from './ui/Button'
 import { scaleIn } from '@/lib/animations'
 import { CheckSquare2, X } from 'lucide-react'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 export function CheckinDialog() {
   const [open, setOpen] = useState(false)
   const [taskId, setTaskId] = useState('')
   const [taskTitle, setTaskTitle] = useState('')
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, open)
 
   useEffect(() => {
     const handler = (...args: unknown[]) => {
@@ -37,6 +40,11 @@ export function CheckinDialog() {
         >
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <motion.div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Check-in"
+            tabIndex={-1}
             variants={scaleIn}
             initial="hidden"
             animate="visible"

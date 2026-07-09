@@ -34,7 +34,7 @@ export function TodayView() {
   const {
     tasks, loading,
     completeTask, startTask, snoozeTask, deleteTask, createTask,
-    updateTask, deleteTasks, completeTasks, updateTasksPriority,
+    updateTask, deleteTasks, completeTasks, updateTasksPriority, reorderTasks,
   } = useTaskContext()
 
   const { saveTemplate: _saveTemplate } = useTemplates()
@@ -94,6 +94,21 @@ export function TodayView() {
     clearSelection()
   }
 
+  // Keyboard shortcuts for bulk actions while a selection is active
+  useEffect(() => {
+    if (!selectionMode) return
+    function handler(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName
+      const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable
+      if (isTyping) return
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); bulkComplete() }
+      else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); bulkDelete() }
+      else if (e.key === 'Escape') { clearSelection() }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [selectionMode, selectedIds])
+
   // Only show top-level tasks in the main list (subtasks appear in preview)
   const topLevel = tasks.filter(t => !t.parent_task_id)
   const activeTasks = topLevel.filter(t => t.status !== 'completed')
@@ -114,6 +129,7 @@ export function TodayView() {
     onEdit: setEditingTask,
     onPreview: setPreviewTask,
     onSaveTemplate: saveTemplate,
+    onReorder: reorderTasks,
   }
 
   return (
@@ -314,32 +330,28 @@ interface TaskGroupProps {
   onEdit: (task: Task) => void
   onPreview: (task: Task) => void
   onSaveTemplate: (task: Task, name: string) => void
+  onReorder: (orderedIds: string[]) => void
   collapsed?: boolean
 }
 
 function TaskGroup({
-  label, icon, tasks: initialTasks, selectedIds, selectionMode, subtaskCounts,
-  onSelect, onComplete, onStart, onSnooze, onDelete, onEdit, onPreview, onSaveTemplate, collapsed = false,
+  label, icon, tasks, selectedIds, selectionMode, subtaskCounts,
+  onSelect, onComplete, onStart, onSnooze, onDelete, onEdit, onPreview, onSaveTemplate, onReorder, collapsed = false,
 }: TaskGroupProps) {
   const [open, setOpen] = useState(!collapsed)
-  const [tasks, setTasks] = useState(initialTasks)
-
-  // Sync when upstream tasks change (completions, etc.)
-  useEffect(() => { setTasks(initialTasks) }, [initialTasks])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
-  async function handleDragEnd(event: DragEndEvent) {
+  function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
     if (!over || active.id === over.id) return
     const oldIndex = tasks.findIndex(t => t.id === active.id)
     const newIndex = tasks.findIndex(t => t.id === over.id)
     const reordered = arrayMove(tasks, oldIndex, newIndex)
-    setTasks(reordered)
-    await ipc.invoke('tasks:reorder', reordered.map(t => t.id))
+    onReorder(reordered.map(t => t.id))
   }
 
   if (tasks.length === 0) return null

@@ -1,6 +1,8 @@
+import { useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 import { scaleIn } from '@/lib/animations'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 const SHORTCUTS = [
   { group: 'Navigation', items: [
@@ -32,6 +34,9 @@ interface ShortcutHelpProps {
 }
 
 export function ShortcutHelp({ open, onClose }: ShortcutHelpProps) {
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, open, onClose)
+
   return (
     <AnimatePresence>
       {open && (
@@ -44,6 +49,10 @@ export function ShortcutHelp({ open, onClose }: ShortcutHelpProps) {
         >
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
           <motion.div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Keyboard shortcuts"
             variants={scaleIn}
             initial="hidden"
             animate="visible"
@@ -53,7 +62,7 @@ export function ShortcutHelp({ open, onClose }: ShortcutHelpProps) {
           >
             <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--tf-border)' }}>
               <h2 className="text-sm font-semibold" style={{ color: 'var(--tf-text)' }}>Keyboard Shortcuts</h2>
-              <button onClick={onClose} className="rounded-lg p-1 transition-colors" style={{ color: 'var(--tf-text-muted)' }}
+              <button onClick={onClose} aria-label="Close dialog" className="rounded-lg p-1 transition-colors" style={{ color: 'var(--tf-text-muted)' }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--tf-bg-tertiary)')}
                 onMouseLeave={e => (e.currentTarget.style.background = '')}>
                 <X size={15} />

@@ -10,6 +10,7 @@ import { Task } from '@/hooks/useTasks'
 import { useTaskContext } from '@/contexts/TaskContext'
 import { cn, formatDate, isOverdue } from '@/lib/utils'
 import { Button } from './ui/Button'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 const SNOOZE_OPTIONS = [
   { label: '15 min', minutes: 15 },
@@ -38,6 +39,8 @@ export function TaskPreviewModal({
   const [showSnooze, setShowSnooze] = useState(false)
   const subtaskInputRef = useRef<HTMLInputElement>(null)
   const snoozeRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, !!task, onClose)
 
   useEffect(() => {
     if (!task) return
@@ -58,14 +61,6 @@ export function TaskPreviewModal({
     if (showSnooze) document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [showSnooze])
-
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
-  }, [onClose])
 
   if (!task) return null
 
@@ -114,6 +109,10 @@ export function TaskPreviewModal({
         >
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
           <motion.div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Task: ${task.title}`}
             className="relative z-10 w-full max-w-lg rounded-2xl border shadow-2xl flex flex-col max-h-[80vh]"
             style={{ background: 'var(--tf-dialog-bg)', borderColor: 'var(--tf-border)' }}
             initial={{ opacity: 0, scale: 0.96, y: 8 }}

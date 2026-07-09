@@ -16,6 +16,7 @@ interface TaskContextValue {
   deleteTasks: (ids: string[]) => Promise<void>
   completeTasks: (ids: string[]) => Promise<void>
   updateTasksPriority: (ids: string[], priority: Task['priority']) => Promise<void>
+  reorderTasks: (orderedIds: string[]) => Promise<void>
   getSubtasks: (parentId: string) => Promise<Task[]>
   createSubtask: (parentId: string, data: Partial<Task>) => Promise<Task | null>
   completeSubtask: (id: string) => Promise<void>
@@ -107,6 +108,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     ))
     try {
       const { task: updated, sessionId } = await ipc.invoke<{ task: Task; sessionId: string }>('tasks:start', id)
+      if (updated) setTasks(prev => prev.map(t => t.id === id ? updated : t))
       if (task) {
         await ipc.invoke('task:started', id, task.title)
         await ipc.invoke('forcing:start-task-session', id)
@@ -122,9 +124,11 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
   const snoozeTask = useCallback(async (id: string, minutes = 30) => {
     const task = tasks.find(t => t.id === id)
+    const wasInProgress = task?.status === 'in_progress'
     setTasks(prev => prev.filter(t => t.id !== id))
     try {
       await ipc.invoke('tasks:snooze', id, minutes)
+      if (wasInProgress) await ipc.invoke('task:stopped')
       toast.success(`Snoozed for ${minutes < 60 ? `${minutes}m` : `${minutes / 60}h`}`)
     } catch {
       if (task) setTasks(prev => [...prev, task])
@@ -134,9 +138,11 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
   const deleteTask = useCallback(async (id: string) => {
     const task = tasks.find(t => t.id === id)
+    const wasInProgress = task?.status === 'in_progress'
     setTasks(prev => prev.filter(t => t.id !== id))
     try {
       await ipc.invoke('tasks:delete', id)
+      if (wasInProgress) await ipc.invoke('task:stopped')
     } catch {
       if (task) setTasks(prev => [...prev, task])
       toast.error('Failed to delete task')
@@ -145,9 +151,11 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
   const deleteTasks = useCallback(async (ids: string[]) => {
     const removed = tasks.filter(t => ids.includes(t.id))
+    const hasActiveTask = removed.some(t => t.status === 'in_progress')
     setTasks(prev => prev.filter(t => !ids.includes(t.id)))
     try {
       await Promise.all(ids.map(id => ipc.invoke('tasks:delete', id)))
+      if (hasActiveTask) await ipc.invoke('task:stopped')
       toast.success(`Deleted ${ids.length} task${ids.length > 1 ? 's' : ''}`)
     } catch {
       setTasks(prev => [...prev, ...removed])
@@ -175,6 +183,26 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       await Promise.all(ids.map(id => ipc.invoke('tasks:update', id, { priority })))
     } catch {
       toast.error('Failed to update priority')
+      reload()
+    }
+  }, [reload])
+
+  const reorderTasks = useCallback(async (orderedIds: string[]) => {
+    setTasks(prev => {
+      const idSet = new Set(orderedIds)
+      const reordered = orderedIds
+        .map((id, i) => {
+          const t = prev.find(p => p.id === id)
+          return t ? { ...t, sort_order: i } : null
+        })
+        .filter((t): t is Task => t !== null)
+      let i = 0
+      return prev.map(t => idSet.has(t.id) ? reordered[i++] : t)
+    })
+    try {
+      await ipc.invoke('tasks:reorder', orderedIds)
+    } catch {
+      toast.error('Failed to reorder tasks')
       reload()
     }
   }, [reload])
@@ -218,7 +246,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     <TaskContext.Provider value={{
       tasks, loading, reload,
       createTask, updateTask, completeTask, startTask,
-      snoozeTask, deleteTask, deleteTasks, completeTasks, updateTasksPriority,
+      snoozeTask, deleteTask, deleteTasks, completeTasks, updateTasksPriority, reorderTasks,
       getSubtasks, createSubtask, completeSubtask, deleteSubtask,
     }}>
       {children}

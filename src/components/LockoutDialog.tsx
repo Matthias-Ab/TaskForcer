@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ipc } from '@/lib/ipc'
 import { Button } from './ui/Button'
 import { Textarea } from './ui/Input'
 import { scaleIn } from '@/lib/animations'
 import { Lock, AlertTriangle } from 'lucide-react'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 export function LockoutDialog() {
   const [open, setOpen] = useState(false)
@@ -12,6 +13,8 @@ export function LockoutDialog() {
   const [threshold, setThreshold] = useState(50)
   const [reason, setReason] = useState('')
   const [loading, setLoading] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, open)
 
   useEffect(() => {
     const handler = (...args: unknown[]) => {
@@ -44,6 +47,11 @@ export function LockoutDialog() {
         >
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md" />
           <motion.div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Productivity lockout"
+            tabIndex={-1}
             variants={scaleIn}
             initial="hidden"
             animate="visible"

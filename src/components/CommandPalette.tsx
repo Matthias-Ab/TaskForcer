@@ -1,14 +1,15 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Command } from 'cmdk'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { scaleIn } from '@/lib/animations'
 import {
   CheckSquare2, CalendarDays, Clock, BarChart2, Skull, Settings,
-  Plus, Play, Search, Bookmark
+  Plus, Play, Search, Bookmark, RotateCcw
 } from 'lucide-react'
 import { useTaskContext } from '@/contexts/TaskContext'
 import { useTemplates } from '@/hooks/useTemplates'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 interface CommandPaletteProps {
   onCreateTask?: () => void
@@ -19,6 +20,8 @@ export function CommandPalette({ onCreateTask }: CommandPaletteProps) {
   const navigate = useNavigate()
   const { tasks, startTask, createTask } = useTaskContext()
   const { templates } = useTemplates()
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, open, () => setOpen(false))
 
   const pendingTasks = tasks.filter(t => t.status === 'pending' || t.status === 'in_progress')
 
@@ -33,9 +36,10 @@ export function CommandPalette({ onCreateTask }: CommandPaletteProps) {
         const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable
         if (isTyping) return
         const shortcuts: Record<string, string> = {
-          '1': '/today', '2': '/calendar', '3': '/upcoming', '4': '/stats', '5': '/shame',
+          '1': '/today', '2': '/calendar', '3': '/upcoming', '4': '/stats', '5': '/shame', '6': '/review',
         }
         if (shortcuts[e.key]) navigate(shortcuts[e.key])
+        if (e.key === ',') navigate('/settings')
         if (e.key === 'n' && onCreateTask) onCreateTask()
       }
     }
@@ -60,6 +64,10 @@ export function CommandPalette({ onCreateTask }: CommandPaletteProps) {
         >
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setOpen(false)} />
           <motion.div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Command palette"
             variants={scaleIn}
             initial="hidden"
             animate="visible"
@@ -95,6 +103,7 @@ export function CommandPalette({ onCreateTask }: CommandPaletteProps) {
                     { label: 'Upcoming', to: '/upcoming', icon: Clock, key: '3' },
                     { label: 'Stats', to: '/stats', icon: BarChart2, key: '4' },
                     { label: 'Shame Log', to: '/shame', icon: Skull, key: '5' },
+                    { label: 'Weekly Review', to: '/review', icon: RotateCcw, key: '6' },
                     { label: 'Settings', to: '/settings', icon: Settings, key: ',' },
                   ].map(({ label, to, icon: Icon, key }) => (
                     <Command.Item
@@ -108,7 +117,7 @@ export function CommandPalette({ onCreateTask }: CommandPaletteProps) {
                     >
                       <Icon size={14} style={{ color: 'var(--tf-text-faint)' }} />
                       <span style={{ color: 'var(--tf-text)' }}>{label}</span>
-                      <kbd className="ml-auto text-[10px]" style={{ color: 'var(--tf-text-faint)' }}>⌘{key}</kbd>
+                      <kbd className="ml-auto text-[10px]" style={{ color: 'var(--tf-text-faint)' }}>{key}</kbd>
                     </Command.Item>
                   ))}
                 </Command.Group>

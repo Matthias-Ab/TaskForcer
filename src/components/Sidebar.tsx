@@ -156,7 +156,7 @@ export function Sidebar() {
                 <Icon size={16} className="flex-shrink-0" />
                 <span className="flex-1">{label}</span>
                 <span className="text-[10px] font-mono opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--tf-text-faint)' }}>
-                  ⌘{shortcut}
+                  {shortcut}
                 </span>
                 {isActive && (
                   <motion.div

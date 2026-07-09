@@ -1,6 +1,9 @@
 import { ipcMain } from 'electron'
 import { getDb } from '../db'
 import { randomUUID } from 'crypto'
+import { parseTask } from './tasks'
+
+const UPDATABLE_FIELDS = new Set(['name', 'color', 'emoji'])
 
 export interface Project {
   id: string
@@ -27,7 +30,7 @@ export function registerProjectsIpc(): void {
     const updates: string[] = []
     const params: unknown[] = []
     for (const [key, val] of Object.entries(data)) {
-      if (key === 'id') continue
+      if (!UPDATABLE_FIELDS.has(key)) continue
       updates.push(`${key} = ?`)
       params.push(val)
     }
@@ -50,16 +53,6 @@ export function registerProjectsIpc(): void {
     const rows = db.prepare(
       "SELECT * FROM tasks WHERE project_id = ? AND parent_task_id IS NULL ORDER BY sort_order ASC, created_at ASC"
     ).all(projectId) as Record<string, unknown>[]
-    return rows.map(r => ({
-      ...r,
-      tags: JSON.parse((r.tags as string) || '[]'),
-      blocked_by: JSON.parse((r.blocked_by as string) || '[]'),
-      required_tools: JSON.parse((r.required_tools as string) || '[]'),
-      allowed_urls: JSON.parse((r.allowed_urls as string) || '[]'),
-      distraction_apps: JSON.parse((r.distraction_apps as string) || '[]'),
-      project_id: r.project_id || null,
-      sort_order: r.sort_order || 0,
-      elapsed_seconds: r.elapsed_seconds || 0,
-    }))
+    return rows.map(parseTask)
   })
 }

@@ -6,7 +6,10 @@ export function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false)
 
   useEffect(() => {
-    ipc.invoke<boolean>('window:is-maximized').then(setIsMaximized)
+    ipc.invoke<boolean>('window:is-maximized').then(setIsMaximized).catch(() => {})
+    const handler = (...args: unknown[]) => setIsMaximized(args[0] as boolean)
+    ipc.on('window:maximize-changed', handler)
+    return () => ipc.off('window:maximize-changed', handler)
   }, [])
 
   return (
@@ -22,7 +25,7 @@ export function TitleBar() {
       <div className="titlebar-no-drag flex items-center gap-1">
         <WinBtn onClick={() => ipc.invoke('window:minimize')} icon={<Minus size={12} />} title="Minimize" danger={false} />
         <WinBtn
-          onClick={() => { ipc.invoke('window:maximize'); setIsMaximized(m => !m) }}
+          onClick={() => ipc.invoke('window:maximize')}
           icon={<Square size={10} />}
           title={isMaximized ? 'Restore' : 'Maximize'}
           danger={false}

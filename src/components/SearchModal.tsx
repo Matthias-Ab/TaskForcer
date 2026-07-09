@@ -5,6 +5,7 @@ import { ipc } from '@/lib/ipc'
 import { Task } from '@/hooks/useTasks'
 import { cn, formatDate, isOverdue } from '@/lib/utils'
 import { scaleIn } from '@/lib/animations'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 interface SearchModalProps {
   open: boolean
@@ -18,6 +19,8 @@ export function SearchModal({ open, onClose, onPreview }: SearchModalProps) {
   const [selected, setSelected] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, open, onClose)
 
   useEffect(() => {
     if (open) {
@@ -42,7 +45,6 @@ export function SearchModal({ open, onClose, onPreview }: SearchModalProps) {
   useEffect(() => {
     function handler(e: KeyboardEvent) {
       if (!open) return
-      if (e.key === 'Escape') { onClose(); return }
       if (e.key === 'ArrowDown') { e.preventDefault(); setSelected(s => Math.min(s + 1, results.length - 1)) }
       if (e.key === 'ArrowUp') { e.preventDefault(); setSelected(s => Math.max(s - 1, 0)) }
       if (e.key === 'Enter' && results[selected]) { onPreview(results[selected]); onClose() }
@@ -69,6 +71,10 @@ export function SearchModal({ open, onClose, onPreview }: SearchModalProps) {
         >
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
           <motion.div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Search tasks"
             variants={scaleIn}
             initial="hidden"
             animate="visible"

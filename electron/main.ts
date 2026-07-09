@@ -12,13 +12,26 @@ import { registerScoresIpc, calculateTodayScore } from './ipc/scores'
 import { registerSettingsIpc } from './ipc/settings'
 import { registerTemplatesIpc } from './ipc/templates'
 import { registerProjectsIpc } from './ipc/projects'
-import { registerForcingIpc, startIdleDetection, setupEndOfDayGuard } from './forcing'
-import { registerFocusIpc } from './focus-tracker'
+import { registerForcingIpc, startIdleDetection, setupEndOfDayGuard, stopCheckinSchedule } from './forcing'
+import { registerFocusIpc, stopFocusTracking } from './focus-tracker'
 import { initScheduler } from './scheduler'
 import { createTray, destroyTray } from './tray'
 import { createWidgetWindow, showWidget, updateWidgetTask, registerWidgetIpc } from './widget-window'
 
 const isDev = process.env.NODE_ENV === 'development'
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show()
+      mainWindow.focus()
+    }
+  })
+}
 
 let mainWindow: BrowserWindow | null = null
 let morningWindow: BrowserWindow | null = null
@@ -48,18 +61,11 @@ function createMainWindow(): BrowserWindow {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow!.show()
-    setupEndOfDayGuard(mainWindow!)
   })
 
   mainWindow.on('closed', () => { mainWindow = null })
-
-  ipcMain.handle('window:minimize', () => mainWindow?.minimize())
-  ipcMain.handle('window:maximize', () => {
-    if (mainWindow?.isMaximized()) mainWindow.restore()
-    else mainWindow?.maximize()
-  })
-  ipcMain.handle('window:close', () => mainWindow?.close())
-  ipcMain.handle('window:is-maximized', () => mainWindow?.isMaximized() ?? false)
+  mainWindow.on('maximize', () => mainWindow?.webContents.send('window:maximize-changed', true))
+  mainWindow.on('unmaximize', () => mainWindow?.webContents.send('window:maximize-changed', false))
 
   return mainWindow
 }
@@ -110,6 +116,14 @@ function checkMorningPopup(): void {
 }
 
 function registerMainIpc(): void {
+  ipcMain.handle('window:minimize', () => mainWindow?.minimize())
+  ipcMain.handle('window:maximize', () => {
+    if (mainWindow?.isMaximized()) mainWindow.restore()
+    else mainWindow?.maximize()
+  })
+  ipcMain.handle('window:close', () => mainWindow?.close())
+  ipcMain.handle('window:is-maximized', () => mainWindow?.isMaximized() ?? false)
+
   ipcMain.handle('morning:dismiss', () => {
     morningWindow?.hide()
     return { ok: true }
@@ -123,6 +137,8 @@ function registerMainIpc(): void {
 
   ipcMain.handle('task:stopped', () => {
     updateWidgetTask(null, null)
+    stopCheckinSchedule()
+    stopFocusTracking()
     return { ok: true }
   })
 
@@ -139,6 +155,8 @@ function registerMainIpc(): void {
 }
 
 app.whenReady().then(async () => {
+  if (!gotSingleInstanceLock) return
+
   initDb()
 
   // Apply auto-launch setting
@@ -168,6 +186,8 @@ app.whenReady().then(async () => {
 
   initScheduler()
   startIdleDetection()
+
+  setupEndOfDayGuard()
 
   const win = createMainWindow()
   createMorningWindow()

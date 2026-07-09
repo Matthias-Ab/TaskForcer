@@ -25,7 +25,13 @@ export interface Task {
   tags: string[]
 }
 
-function parseTask(row: Record<string, unknown>): Task {
+const UPDATABLE_FIELDS = new Set([
+  'title', 'description', 'due_at', 'priority', 'estimate_minutes', 'status',
+  'completed_at', 'recurrence_rule', 'parent_task_id', 'project_id', 'sort_order',
+  'blocked_by', 'elapsed_seconds', 'required_tools', 'allowed_urls', 'distraction_apps', 'tags',
+])
+
+export function parseTask(row: Record<string, unknown>): Task {
   return {
     ...row,
     required_tools: JSON.parse((row.required_tools as string) || '[]'),
@@ -49,15 +55,17 @@ export function registerTaskIpc(): void {
       query += ' AND status = ?'
       params.push(filter.status)
     }
-    if (filter?.date) {
+    if (filter?.date && !isNaN(new Date(filter.date).getTime())) {
       const start = new Date(filter.date)
       start.setHours(0, 0, 0, 0)
       const end = new Date(filter.date)
       end.setHours(23, 59, 59, 999)
-      query += ' AND (due_at BETWEEN ? AND ? OR (due_at IS NULL AND date(created_at/1000, "unixepoch") = ?))'
+      query += " AND (due_at BETWEEN ? AND ? OR (due_at IS NULL AND date(created_at/1000, 'unixepoch') = ?))"
       params.push(start.getTime(), end.getTime(), filter.date)
     }
-    query += ' ORDER BY priority DESC, due_at ASC NULLS LAST, created_at ASC'
+    query += ` ORDER BY
+      CASE priority WHEN 'critical' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END,
+      due_at ASC NULLS LAST, created_at ASC`
 
     const rows = db.prepare(query).all(...params) as Record<string, unknown>[]
     return rows.map(parseTask)
@@ -77,28 +85,46 @@ export function registerTaskIpc(): void {
         AND (due_at BETWEEN ? AND ? OR due_at IS NULL OR due_at < ?)
       ORDER BY
         CASE priority WHEN 'critical' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END,
-        due_at ASC NULLS LAST
+        sort_order ASC,
+        due_at ASC NULLS LAST,
+        created_at ASC
     `).all(start.getTime(), end.getTime(), end.getTime()) as Record<string, unknown>[]
     return rows.map(parseTask)
   })
 
-  ipcMain.handle('tasks:create', (_e, data: Omit<Task, 'id' | 'created_at'>) => {
+  ipcMain.handle('tasks:create', (_e, data: Partial<Omit<Task, 'id' | 'created_at'>> & { title: string }) => {
     const db = getDb()
     const task: Task = {
-      ...data,
+      title: data.title,
+      description: data.description ?? '',
+      due_at: data.due_at ?? null,
+      priority: data.priority || 'medium',
+      estimate_minutes: data.estimate_minutes ?? 30,
+      status: data.status || 'pending',
+      completed_at: data.completed_at ?? null,
+      recurrence_rule: data.recurrence_rule ?? null,
+      parent_task_id: data.parent_task_id ?? null,
+      project_id: data.project_id ?? null,
+      sort_order: data.sort_order ?? 0,
+      blocked_by: data.blocked_by ?? [],
+      elapsed_seconds: data.elapsed_seconds ?? 0,
+      required_tools: data.required_tools ?? [],
+      allowed_urls: data.allowed_urls ?? [],
+      distraction_apps: data.distraction_apps ?? [],
+      tags: data.tags ?? [],
       id: randomUUID(),
       created_at: Date.now(),
-      status: data.status || 'pending',
     }
     db.prepare(`
       INSERT INTO tasks (id, title, description, due_at, priority, estimate_minutes, status,
-        created_at, completed_at, recurrence_rule, parent_task_id, required_tools, allowed_urls,
-        distraction_apps, tags)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        created_at, completed_at, recurrence_rule, parent_task_id, project_id, sort_order,
+        blocked_by, elapsed_seconds, required_tools, allowed_urls, distraction_apps, tags)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       task.id, task.title, task.description, task.due_at, task.priority,
       task.estimate_minutes, task.status, task.created_at, task.completed_at,
-      task.recurrence_rule, task.parent_task_id,
+      task.recurrence_rule, task.parent_task_id, task.project_id, task.sort_order,
+      JSON.stringify(task.blocked_by), task.elapsed_seconds,
       JSON.stringify(task.required_tools), JSON.stringify(task.allowed_urls),
       JSON.stringify(task.distraction_apps), JSON.stringify(task.tags)
     )
@@ -112,7 +138,7 @@ export function registerTaskIpc(): void {
     const jsonFields = new Set(['required_tools', 'allowed_urls', 'distraction_apps', 'tags'])
 
     for (const [key, val] of Object.entries(data)) {
-      if (key === 'id') continue
+      if (!UPDATABLE_FIELDS.has(key)) continue
       updates.push(`${key} = ?`)
       params.push(jsonFields.has(key) ? JSON.stringify(val) : val)
     }
@@ -165,6 +191,8 @@ export function registerTaskIpc(): void {
     const db = getDb()
     db.prepare(`UPDATE tasks SET status = 'pending' WHERE status = 'in_progress' AND id != ?`).run(id)
     db.prepare(`UPDATE tasks SET status = 'in_progress' WHERE id = ?`).run(id)
+    // Defensively close any session left open by a prior task that never got an explicit stop event
+    db.prepare(`UPDATE sessions SET ended_at = ? WHERE ended_at IS NULL AND task_id != ?`).run(Date.now(), id)
 
     const sessionId = randomUUID()
     db.prepare(`INSERT INTO sessions (id, task_id, started_at) VALUES (?, ?, ?)`).run(sessionId, id, Date.now())

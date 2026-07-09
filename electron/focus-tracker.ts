@@ -23,6 +23,11 @@ export function startFocusTracking(sessionId: string, taskId: string): void {
 
 export function stopFocusTracking(): void {
   if (pollInterval) { clearInterval(pollInterval); pollInterval = null }
+  if (activeSessionId) {
+    try {
+      getDb().prepare('UPDATE sessions SET ended_at = ? WHERE id = ? AND ended_at IS NULL').run(Date.now(), activeSessionId)
+    } catch { /* db may not be ready during shutdown */ }
+  }
   activeSessionId = null
   currentTaskId = null
 }
