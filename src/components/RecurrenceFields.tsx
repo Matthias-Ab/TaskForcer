@@ -10,22 +10,61 @@ export interface RecurrenceValue {
   rule: string
   customDays: string
   endDate: string
+  /** Time of day (HH:MM) for the reminder -- a recurring task has no single fixed date */
+  time: string
 }
 
-export function recurrenceFromTask(recurrenceRule: string | null, recurrenceEndAt: number | null): RecurrenceValue {
+/** First occurrence on/after now (tomorrow if the time already passed today), respecting the rule. */
+function computeInitialDueDate(rule: string, timeStr: string): number {
+  const [hours, minutes] = timeStr.split(':').map(Number)
+  const candidate = new Date()
+  candidate.setHours(hours || 9, minutes || 0, 0, 0)
+  if (candidate.getTime() <= Date.now()) {
+    candidate.setDate(candidate.getDate() + 1)
+  }
+  if (rule === 'weekdays') {
+    while (candidate.getDay() === 0 || candidate.getDay() === 6) {
+      candidate.setDate(candidate.getDate() + 1)
+    }
+  }
+  return candidate.getTime()
+}
+
+export function recurrenceFromTask(recurrenceRule: string | null, recurrenceEndAt: number | null, dueAt?: number | null): RecurrenceValue {
   const customMatch = recurrenceRule?.match(/^custom:(\d+)$/)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const time = dueAt ? `${pad(new Date(dueAt).getHours())}:${pad(new Date(dueAt).getMinutes())}` : '09:00'
   return {
     rule: customMatch ? 'custom' : (recurrenceRule || ''),
     customDays: customMatch ? customMatch[1] : '7',
     endDate: recurrenceEndAt ? new Date(recurrenceEndAt).toISOString().split('T')[0] : '',
+    time,
   }
 }
 
-export function recurrenceToTaskData(value: RecurrenceValue): { recurrence_rule: string | null; recurrence_end_at: number | null } {
+/**
+ * `existingDueAt`: when editing a task that already has a recurrence date, keep that same
+ * date and just apply the (possibly-edited) time-of-day, instead of jumping to "next
+ * occurrence from right now" -- otherwise saving unrelated edits would silently reschedule it.
+ * Omit it when creating a new recurring task, where "next applicable slot from now" is correct.
+ */
+export function recurrenceToTaskData(value: RecurrenceValue, existingDueAt?: number | null): { recurrence_rule: string | null; recurrence_end_at: number | null; due_at?: number } {
   const rule = value.rule === 'custom' ? `custom:${parseInt(value.customDays, 10) || 7}` : (value.rule || null)
+  let due_at: number | undefined
+  if (rule) {
+    if (existingDueAt) {
+      const [hours, minutes] = value.time.split(':').map(Number)
+      const d = new Date(existingDueAt)
+      d.setHours(hours || 9, minutes || 0, 0, 0)
+      due_at = d.getTime()
+    } else {
+      due_at = computeInitialDueDate(rule, value.time)
+    }
+  }
   return {
     recurrence_rule: rule,
     recurrence_end_at: rule && value.endDate ? new Date(value.endDate).setHours(23, 59, 59, 999) : null,
+    ...(due_at !== undefined ? { due_at } : {}),
   }
 }
 
@@ -61,6 +100,15 @@ export function RecurrenceFields({ value, onChange }: RecurrenceFieldsProps) {
           min="1"
           value={value.customDays}
           onChange={e => onChange({ ...value, customDays: e.target.value })}
+        />
+      )}
+
+      {value.rule && (
+        <Input
+          label="Reminder time"
+          type="time"
+          value={value.time}
+          onChange={e => onChange({ ...value, time: e.target.value })}
         />
       )}
 

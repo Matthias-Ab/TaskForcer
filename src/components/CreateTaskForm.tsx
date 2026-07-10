@@ -38,14 +38,16 @@ export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTa
     e.preventDefault()
     if (!title.trim()) return
     setLoading(true)
+    const recurrenceData = compact ? null : recurrenceToTaskData(recurrence)
     await onSubmit({
       title: title.trim(),
       description,
       priority,
-      due_at: dueDate ? new Date(dueDate).getTime() : null,
+      due_at: recurrenceData?.due_at ?? (dueDate ? new Date(dueDate).getTime() : null),
       estimate_minutes: parseInt(estimate) || 30,
       tags,
-      ...(compact ? {} : { ...recurrenceToTaskData(recurrence), ...advancedFieldsToTaskData(advanced) }),
+      ...(recurrenceData ? { recurrence_rule: recurrenceData.recurrence_rule, recurrence_end_at: recurrenceData.recurrence_end_at } : {}),
+      ...(compact ? {} : advancedFieldsToTaskData(advanced)),
     })
     setTitle('')
     setDescription('')
@@ -167,12 +169,14 @@ export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTa
             <option value="critical">Critical</option>
           </select>
         </div>
-        <Input
-          label="Due date"
-          type="datetime-local"
-          value={dueDate}
-          onChange={e => setDueDate(e.target.value)}
-        />
+        {!recurrence.rule && (
+          <Input
+            label="Due date"
+            type="datetime-local"
+            value={dueDate}
+            onChange={e => setDueDate(e.target.value)}
+          />
+        )}
         <Input
           label="Estimate (min)"
           type="number"

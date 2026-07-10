@@ -32,7 +32,7 @@ export function EditTaskForm({ task, onSubmit, onCancel }: EditTaskFormProps) {
   const [dueDate, setDueDate] = useState(tsToDatetimeLocal(task.due_at))
   const [estimate, setEstimate] = useState(String(task.estimate_minutes || 30))
   const [tags, setTags] = useState<string[]>(task.tags || [])
-  const [recurrence, setRecurrence] = useState(recurrenceFromTask(task.recurrence_rule, task.recurrence_end_at))
+  const [recurrence, setRecurrence] = useState(recurrenceFromTask(task.recurrence_rule, task.recurrence_end_at, task.due_at))
   const [advanced, setAdvanced] = useState(advancedFieldsFromTask(task))
   const [loading, setLoading] = useState(false)
   const allTags = useAllTags()
@@ -41,14 +41,16 @@ export function EditTaskForm({ task, onSubmit, onCancel }: EditTaskFormProps) {
     e.preventDefault()
     if (!title.trim()) return
     setLoading(true)
+    const recurrenceData = recurrenceToTaskData(recurrence, task.due_at)
     await onSubmit({
       title: title.trim(),
       description,
       priority,
-      due_at: dueDate ? new Date(dueDate).getTime() : null,
+      due_at: recurrenceData.due_at ?? (dueDate ? new Date(dueDate).getTime() : null),
       estimate_minutes: parseInt(estimate) || 30,
       tags,
-      ...recurrenceToTaskData(recurrence),
+      recurrence_rule: recurrenceData.recurrence_rule,
+      recurrence_end_at: recurrenceData.recurrence_end_at,
       ...advancedFieldsToTaskData(advanced),
     })
     setLoading(false)
@@ -84,12 +86,14 @@ export function EditTaskForm({ task, onSubmit, onCancel }: EditTaskFormProps) {
             <option value="critical">Critical</option>
           </select>
         </div>
-        <Input
-          label="Due date"
-          type="datetime-local"
-          value={dueDate}
-          onChange={e => setDueDate(e.target.value)}
-        />
+        {!recurrence.rule && (
+          <Input
+            label="Due date"
+            type="datetime-local"
+            value={dueDate}
+            onChange={e => setDueDate(e.target.value)}
+          />
+        )}
         <Input
           label="Estimate (min)"
           type="number"
