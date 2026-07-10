@@ -7,12 +7,13 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { ipc } from '@/lib/ipc'
 import { toast } from 'sonner'
-import { Download, Upload, Trash2, RefreshCw, Sun, Moon, PlayCircle } from 'lucide-react'
+import { Download, Upload, Trash2, RefreshCw, Sun, Moon, PlayCircle, CalendarDays } from 'lucide-react'
 
 export function SettingsView() {
   const { settings, loading, setSetting } = useSettings()
   const { theme, toggleTheme } = useTheme()
   const importInputRef = useRef<HTMLInputElement>(null)
+  const importIcsRef = useRef<HTMLInputElement>(null)
 
   if (loading) return null
 
@@ -41,6 +42,31 @@ export function SettingsView() {
       setTimeout(() => window.location.reload(), 800)
     } catch (err) {
       toast.error(`Import failed: ${err instanceof Error ? err.message : 'invalid file'}`)
+    }
+  }
+
+  async function exportIcs() {
+    const ics = await ipc.invoke<string>('calendar:export-ics')
+    const blob = new Blob([ics], { type: 'text/calendar' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `taskforcer-calendar-${new Date().toISOString().split('T')[0]}.ics`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success('Calendar exported!')
+  }
+
+  async function importIcs(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      const text = await file.text()
+      const result = await ipc.invoke<{ imported: number; total: number }>('calendar:import-ics', text)
+      toast.success(`Imported ${result.imported} of ${result.total} event${result.total !== 1 ? 's' : ''} as tasks`)
+    } catch (err) {
+      toast.error(`Import failed: ${err instanceof Error ? err.message : 'invalid .ics file'}`)
     }
   }
 
@@ -181,6 +207,15 @@ export function SettingsView() {
             <Button variant="secondary" size="sm" onClick={() => importInputRef.current?.click()}>
               <Upload size={14} />
               Import JSON
+            </Button>
+            <Button variant="secondary" size="sm" onClick={exportIcs}>
+              <CalendarDays size={14} />
+              Export Calendar (.ics)
+            </Button>
+            <input ref={importIcsRef} type="file" accept=".ics,text/calendar" className="hidden" onChange={importIcs} />
+            <Button variant="secondary" size="sm" onClick={() => importIcsRef.current?.click()}>
+              <CalendarDays size={14} />
+              Import Calendar (.ics)
             </Button>
             <Button variant="ghost" size="sm" onClick={clearShameLog} className="!text-red-500">
               <Trash2 size={14} />

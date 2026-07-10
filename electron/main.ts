@@ -18,6 +18,7 @@ import { registerSettingsIpc } from './ipc/settings'
 import { registerTemplatesIpc } from './ipc/templates'
 import { registerProjectsIpc } from './ipc/projects'
 import { registerSessionsIpc } from './ipc/sessions'
+import { registerCalendarIpc } from './ipc/calendar'
 import { registerForcingIpc, startIdleDetection, setupEndOfDayGuard, stopCheckinSchedule } from './forcing'
 import { registerFocusIpc, stopFocusTracking } from './focus-tracker'
 import { initScheduler } from './scheduler'
@@ -221,6 +222,7 @@ app.whenReady().then(async () => {
   registerTemplatesIpc()
   registerProjectsIpc()
   registerSessionsIpc()
+  registerCalendarIpc()
   registerForcingIpc()
   registerWidgetIpc()
   registerFocusIpc()
