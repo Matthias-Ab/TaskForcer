@@ -38,15 +38,16 @@ export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTa
     e.preventDefault()
     if (!title.trim()) return
     setLoading(true)
-    const recurrenceData = compact ? null : recurrenceToTaskData(recurrence)
+    const recurrenceData = recurrenceToTaskData(recurrence)
     await onSubmit({
       title: title.trim(),
       description,
       priority,
-      due_at: recurrenceData?.due_at ?? (dueDate ? new Date(dueDate).getTime() : null),
+      due_at: recurrenceData.due_at ?? (dueDate ? new Date(dueDate).getTime() : null),
       estimate_minutes: parseInt(estimate) || 30,
       tags,
-      ...(recurrenceData ? { recurrence_rule: recurrenceData.recurrence_rule, recurrence_end_at: recurrenceData.recurrence_end_at } : {}),
+      recurrence_rule: recurrenceData.recurrence_rule,
+      recurrence_end_at: recurrenceData.recurrence_end_at,
       ...(compact ? {} : advancedFieldsToTaskData(advanced)),
     })
     setTitle('')
@@ -102,13 +103,15 @@ export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTa
                   <option value="medium">Medium</option>
                   <option value="critical">Critical</option>
                 </select>
-                <Input
-                  type="datetime-local"
-                  value={dueDate}
-                  onChange={e => setDueDate(e.target.value)}
-                  className="flex-1"
-                  placeholder="Due date"
-                />
+                {!recurrence.rule && (
+                  <Input
+                    type="datetime-local"
+                    value={dueDate}
+                    onChange={e => setDueDate(e.target.value)}
+                    className="flex-1"
+                    placeholder="Due date"
+                  />
+                )}
                 <Input
                   type="number"
                   value={estimate}
@@ -124,6 +127,7 @@ export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTa
                 onChange={setTags}
                 suggestions={allTags}
               />
+              <RecurrenceFields value={recurrence} onChange={setRecurrence} />
               <div className="flex gap-2 justify-end">
                 <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
                   Cancel
