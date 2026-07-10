@@ -104,7 +104,21 @@ export function spawnRecurringTasks(referenceDate?: Date, onlyTaskId?: string): 
   }
 
   for (const task of recurring) {
-    const due = nextDueDate(task.recurrence_rule, ref, task.due_at)
+    // Advance from the most recent occurrence in this series (the template itself, or its
+    // latest spawned child -- whichever is later), not from "today". Only spawn once that
+    // occurrence has actually come due; otherwise every midnight scan would compute a fresh
+    // "today + interval" target and spawn a new duplicate every single day forever.
+    const latest = db.prepare(`
+      SELECT MAX(due_at) as due_at FROM (
+        SELECT due_at FROM tasks WHERE id = ?
+        UNION ALL
+        SELECT due_at FROM tasks WHERE parent_task_id = ?
+      )
+    `).get(task.id, task.id) as { due_at: number | null }
+    const latestDueAt = latest?.due_at ?? task.due_at
+    if (latestDueAt === null || latestDueAt > ref.getTime()) continue
+
+    const due = nextDueDate(task.recurrence_rule, new Date(latestDueAt), latestDueAt)
     if (!due) continue
     if (task.recurrence_end_at && due.getTime() > task.recurrence_end_at) continue
 
