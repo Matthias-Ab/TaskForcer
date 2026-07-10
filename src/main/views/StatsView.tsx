@@ -8,8 +8,8 @@ import { useXP } from '@/hooks/useXP'
 import { ipc } from '@/lib/ipc'
 import { motion } from 'framer-motion'
 import { pageTransition } from '@/lib/animations'
-import { Flame, TrendingUp, CheckSquare2, Star, Zap, Target, Snowflake, ArrowUp, ArrowDown, Minus } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Flame, TrendingUp, CheckSquare2, Star, Zap, Target, Snowflake, ArrowUp, ArrowDown, Minus, History } from 'lucide-react'
+import { cn, formatDuration } from '@/lib/utils'
 
 interface HourData { hour: number; count: number }
 interface ShameTrendPoint { date: string; distraction?: number; skipped_checkin?: number; missed_task?: number; late_completion?: number; excuse?: number }
@@ -18,6 +18,10 @@ interface DayOfWeekStat { day: string; avgScore: number | null; sampleSize: numb
 interface ProjectStat { project_id: string; name: string; color: string; emoji: string; total_tasks: number; completed_tasks: number; total_elapsed_seconds: number }
 interface FreezeEntry { date: string; streak_day: number }
 interface WeekOverWeek { thisWeekAvg: number | null; lastWeekAvg: number | null; deltaPct: number | null }
+interface SessionEntry {
+  id: string; task_id: string; task_title: string; started_at: number; ended_at: number | null
+  active_seconds: number; idle_seconds: number; distracted_seconds: number
+}
 
 const SHAME_TYPE_COLORS: Record<string, string> = {
   distraction: '#f59e0b',
@@ -45,6 +49,7 @@ export function StatsView() {
   const [projectStats, setProjectStats] = useState<ProjectStat[]>([])
   const [freezeHistory, setFreezeHistory] = useState<FreezeEntry[]>([])
   const [weekOverWeek, setWeekOverWeek] = useState<WeekOverWeek | null>(null)
+  const [sessions, setSessions] = useState<SessionEntry[]>([])
 
   useEffect(() => {
     ipc.invoke<HourData[]>('scores:focus-dna').then(setFocusDna).catch(() => {})
@@ -54,6 +59,7 @@ export function StatsView() {
     ipc.invoke<ProjectStat[]>('scores:by-project').then(setProjectStats).catch(() => {})
     ipc.invoke<FreezeEntry[]>('scores:freeze-history').then(setFreezeHistory).catch(() => {})
     ipc.invoke<WeekOverWeek>('scores:week-over-week').then(setWeekOverWeek).catch(() => {})
+    ipc.invoke<SessionEntry[]>('sessions:list', 20, 0).then(setSessions).catch(() => {})
   }, [])
 
   const rankedDays = dayOfWeek.filter(d => d.avgScore !== null).sort((a, b) => (b.avgScore ?? 0) - (a.avgScore ?? 0))
@@ -384,6 +390,37 @@ export function StatsView() {
                   {new Date(f.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} (day {f.streak_day})
                 </span>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Focus session history */}
+        {sessions.length > 0 && (
+          <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--tf-border)', background: 'var(--tf-card-bg)' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <History size={14} className="text-indigo-400" />
+              <h2 className="text-sm font-semibold" style={{ color: 'var(--tf-text)' }}>Recent Focus Sessions</h2>
+            </div>
+            <div className="space-y-1.5 max-h-72 overflow-y-auto">
+              {sessions.map(s => {
+                const durationSec = (s.ended_at ?? Date.now()) / 1000 - s.started_at / 1000
+                return (
+                  <div key={s.id} className="flex items-center gap-3 px-3 py-2 rounded-xl" style={{ background: 'var(--tf-bg-tertiary)' }}>
+                    <span className="text-sm flex-1 truncate" style={{ color: 'var(--tf-text)' }}>{s.task_title}</span>
+                    <span className="text-[11px] font-mono flex-shrink-0" style={{ color: 'var(--tf-text-faint)' }}>
+                      {new Date(s.started_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <span className="text-[11px] font-mono flex-shrink-0" style={{ color: 'var(--tf-text-muted)' }}>
+                      {!s.ended_at ? 'ongoing' : formatDuration(Math.round(durationSec))}
+                    </span>
+                    {s.distracted_seconds > 0 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-400 flex-shrink-0">
+                        {Math.round(s.distracted_seconds / 60)}m distracted
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
