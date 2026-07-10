@@ -65,6 +65,15 @@ function nextDueDate(rule: string, fromDate: Date, originalDueAt: number | null)
     return next
   }
 
+  if (rule === 'mon_sat') {
+    next.setDate(next.getDate() + 1)
+    // Skip only Sunday (0)
+    while (next.getDay() === 0) {
+      next.setDate(next.getDate() + 1)
+    }
+    return next
+  }
+
   if (rule === 'weekly') {
     next.setDate(next.getDate() + 7)
     return next
@@ -93,9 +102,16 @@ export function spawnRecurringTasks(referenceDate?: Date, onlyTaskId?: string): 
 
   let recurring: RecurringTask[]
   if (onlyTaskId) {
+    // onlyTaskId is whatever task was just completed -- almost always a spawned child after the
+    // first cycle, not the root template. Every child's parent_task_id points directly at the
+    // root (flat, not chained), so resolve to the root before looking it up; otherwise this only
+    // ever worked for completing the original template itself, and silently did nothing for
+    // every occurrence after that.
+    const completed = db.prepare('SELECT parent_task_id FROM tasks WHERE id = ?').get(onlyTaskId) as { parent_task_id: string | null } | undefined
+    const rootId = completed?.parent_task_id ?? onlyTaskId
     const row = db.prepare(
-      "SELECT * FROM tasks WHERE id = ? AND recurrence_rule IS NOT NULL AND status NOT IN ('cancelled') AND parent_task_id IS NULL"
-    ).get(onlyTaskId) as RecurringTask | undefined
+      "SELECT * FROM tasks WHERE id = ? AND recurrence_rule IS NOT NULL AND status NOT IN ('cancelled')"
+    ).get(rootId) as RecurringTask | undefined
     recurring = row ? [row] : []
   } else {
     recurring = db.prepare(

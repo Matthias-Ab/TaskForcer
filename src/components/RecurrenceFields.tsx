@@ -27,6 +27,11 @@ function computeInitialDueDate(rule: string, timeStr: string): number {
       candidate.setDate(candidate.getDate() + 1)
     }
   }
+  if (rule === 'mon_sat') {
+    while (candidate.getDay() === 0) {
+      candidate.setDate(candidate.getDate() + 1)
+    }
+  }
   return candidate.getTime()
 }
 
@@ -87,6 +92,7 @@ export function RecurrenceFields({ value, onChange }: RecurrenceFieldsProps) {
           <option value="">None</option>
           <option value="daily">Daily</option>
           <option value="weekdays">Weekdays (Mon–Fri)</option>
+          <option value="mon_sat">Mon–Sat (daily, skip Sunday)</option>
           <option value="weekly">Weekly</option>
           <option value="monthly">Monthly</option>
           <option value="custom">Custom interval...</option>
