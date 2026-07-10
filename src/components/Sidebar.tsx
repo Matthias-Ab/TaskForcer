@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   CalendarDays, CheckSquare2, Clock, BarChart2, Skull,
   Settings, Flame, Sun, Moon, Snowflake, Star, FolderOpen,
-  Plus, RotateCcw, ChevronDown,
+  Plus, RotateCcw, ChevronDown, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTodayScore } from '@/hooks/useScore'
@@ -11,6 +11,7 @@ import { useTheme } from '@/contexts/ThemeContext'
 import { useXP } from '@/hooks/useXP'
 import { useConfetti } from '@/hooks/useConfetti'
 import { useProjects } from '@/hooks/useProjects'
+import { useSettings } from '@/hooks/useSettings'
 import { toast } from 'sonner'
 import { useState } from 'react'
 
@@ -30,6 +31,7 @@ export function Sidebar() {
   const { theme, toggleTheme } = useTheme()
   const { xp, freezes, useFreeze } = useXP()
   const { projects, createProject } = useProjects()
+  const { settings, setSetting } = useSettings()
   const navigate = useNavigate()
   const [freezeLoading, setFreezeLoading] = useState(false)
   const [showProjects, setShowProjects] = useState(true)
@@ -37,6 +39,9 @@ export function Sidebar() {
   const [newProjectName, setNewProjectName] = useState('')
   const [newProjectEmoji, setNewProjectEmoji] = useState('')
   useConfetti(score)
+
+  const collapsed = settings.sidebar_collapsed === 'true'
+  const toggleCollapsed = () => setSetting('sidebar_collapsed', collapsed ? 'false' : 'true')
 
   async function handleCreateProject(e: React.FormEvent) {
     e.preventDefault()
@@ -66,52 +71,76 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex flex-col w-56 flex-shrink-0 border-r" style={{ borderColor: 'var(--tf-border)', background: 'var(--tf-sidebar-bg)' }}>
+    <aside
+      className={cn('flex flex-col flex-shrink-0 border-r transition-all duration-150', collapsed ? 'w-16' : 'w-56')}
+      style={{ borderColor: 'var(--tf-border)', background: 'var(--tf-sidebar-bg)' }}
+    >
       {/* Score display */}
-      <div className="px-4 py-4 border-b" style={{ borderColor: 'var(--tf-border)' }}>
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--tf-text-muted)' }}>Today's Score</span>
-          <div className="flex items-center gap-1.5">
-            {/* Streak freeze */}
+      <div className={cn('py-4 border-b', collapsed ? 'px-2' : 'px-4')} style={{ borderColor: 'var(--tf-border)' }}>
+        {collapsed ? (
+          <div className="flex flex-col items-center gap-1.5" title={`Today's score: ${score ? Math.round(score.score) : '--'}/100`}>
+            <div className={cn('text-lg font-mono font-bold tabular-nums', scoreColor)}>
+              {score ? Math.round(score.score) : '--'}
+            </div>
             {freezes > 0 && (
-              <button
-                onClick={handleUseFreeze}
-                disabled={freezeLoading}
-                title={`${freezes} streak freeze${freezes > 1 ? 's' : ''} available — click to use`}
-                className="flex items-center gap-0.5 text-cyan-400 hover:text-cyan-300 transition-colors"
-              >
-                <Snowflake size={11} />
-                <span className="text-[10px] font-mono">{freezes}</span>
+              <button onClick={handleUseFreeze} disabled={freezeLoading} title={`${freezes} streak freeze${freezes > 1 ? 's' : ''} — click to use`} className="text-cyan-400 hover:text-cyan-300 transition-colors">
+                <Snowflake size={12} />
               </button>
             )}
             {score?.streak_day ? (
-              <div className="flex items-center gap-0.5 text-amber-400">
-                <Flame size={12} />
-                <span className="text-xs font-mono">{score.streak_day}</span>
+              <div className="flex items-center gap-0.5 text-amber-400" title={`${score.streak_day}-day streak`}>
+                <Flame size={11} />
+                <span className="text-[10px] font-mono">{score.streak_day}</span>
               </div>
             ) : null}
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--tf-text-muted)' }}>Today's Score</span>
+              <div className="flex items-center gap-1.5">
+                {/* Streak freeze */}
+                {freezes > 0 && (
+                  <button
+                    onClick={handleUseFreeze}
+                    disabled={freezeLoading}
+                    title={`${freezes} streak freeze${freezes > 1 ? 's' : ''} available — click to use`}
+                    className="flex items-center gap-0.5 text-cyan-400 hover:text-cyan-300 transition-colors"
+                  >
+                    <Snowflake size={11} />
+                    <span className="text-[10px] font-mono">{freezes}</span>
+                  </button>
+                )}
+                {score?.streak_day ? (
+                  <div className="flex items-center gap-0.5 text-amber-400">
+                    <Flame size={12} />
+                    <span className="text-xs font-mono">{score.streak_day}</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
 
-        <div className={cn('text-3xl font-mono font-bold tabular-nums', scoreColor)}>
-          {score ? Math.round(score.score) : '--'}
-          <span className="text-base font-sans font-normal" style={{ color: 'var(--tf-text-faint)' }}>/100</span>
-        </div>
+            <div className={cn('text-3xl font-mono font-bold tabular-nums', scoreColor)}>
+              {score ? Math.round(score.score) : '--'}
+              <span className="text-base font-sans font-normal" style={{ color: 'var(--tf-text-faint)' }}>/100</span>
+            </div>
 
-        {score && (
-          <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--tf-bg-tertiary)' }}>
-            <motion.div
-              className={cn('h-full rounded-full', scoreBarColor)}
-              initial={{ width: 0 }}
-              animate={{ width: `${score.score}%` }}
-              transition={{ duration: 0.8, ease: 'easeOut' }}
-            />
-          </div>
+            {score && (
+              <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--tf-bg-tertiary)' }}>
+                <motion.div
+                  className={cn('h-full rounded-full', scoreBarColor)}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${score.score}%` }}
+                  transition={{ duration: 0.8, ease: 'easeOut' }}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
 
       {/* XP / Level display */}
-      {xp && (
+      {xp && !collapsed && (
         <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--tf-border)' }}>
           <div className="flex items-center justify-between mb-1.5">
             <div className="flex items-center gap-1">
@@ -139,11 +168,12 @@ export function Sidebar() {
       {/* Nav links */}
       <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
         {links.map(({ to, icon: Icon, label, shortcut }) => (
-          <NavLink key={to} to={to}>
+          <NavLink key={to} to={to} title={collapsed ? label : undefined}>
             {({ isActive }) => (
               <motion.div
                 className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer group relative',
+                  'flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer group relative',
+                  collapsed ? 'px-0 justify-center' : 'px-3',
                   isActive ? 'bg-indigo-600/20 text-indigo-500 border border-indigo-600/30' : 'border border-transparent'
                 )}
                 style={!isActive ? { color: 'var(--tf-text-muted)' } : {}}
@@ -154,10 +184,14 @@ export function Sidebar() {
                 transition={{ duration: 0.1 }}
               >
                 <Icon size={16} className="flex-shrink-0" />
-                <span className="flex-1">{label}</span>
-                <span className="text-[10px] font-mono opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--tf-text-faint)' }}>
-                  {shortcut}
-                </span>
+                {!collapsed && (
+                  <>
+                    <span className="flex-1">{label}</span>
+                    <span className="text-[10px] font-mono opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--tf-text-faint)' }}>
+                      {shortcut}
+                    </span>
+                  </>
+                )}
                 {isActive && (
                   <motion.div
                     className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-indigo-500 rounded-full"
@@ -170,6 +204,7 @@ export function Sidebar() {
         ))}
 
         {/* Projects section */}
+        {!collapsed && (
         <div className="pt-2 border-t mt-2" style={{ borderColor: 'var(--tf-border)' }}>
           <button
             onClick={() => setShowProjects(p => !p)}
@@ -254,25 +289,27 @@ export function Sidebar() {
             )}
           </AnimatePresence>
         </div>
+        )}
       </nav>
 
       {/* Bottom: theme toggle + settings */}
       <div className="px-2 py-3 border-t space-y-0.5" style={{ borderColor: 'var(--tf-border)' }}>
         <button
           onClick={toggleTheme}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer"
+          title={collapsed ? (theme === 'dark' ? 'Light mode' : 'Dark mode') : undefined}
+          className={cn('w-full flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer', collapsed ? 'justify-center px-0' : 'px-3')}
           style={{ color: 'var(--tf-text-muted)' }}
           onMouseEnter={e => (e.currentTarget.style.background = 'var(--tf-bg-tertiary)')}
           onMouseLeave={e => (e.currentTarget.style.background = '')}
         >
           {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>
+          {!collapsed && <span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span>}
         </button>
 
-        <NavLink to="/settings">
+        <NavLink to="/settings" title={collapsed ? 'Settings' : undefined}>
           {({ isActive }) => (
             <motion.div
-              className={cn('flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer')}
+              className={cn('flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer', collapsed ? 'justify-center px-0' : 'px-3')}
               style={{ color: 'var(--tf-text-muted)', background: isActive ? 'var(--tf-bg-tertiary)' : '' }}
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--tf-bg-tertiary)')}
               onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = '' }}
@@ -280,10 +317,22 @@ export function Sidebar() {
               whileTap={{ scale: 0.98 }}
             >
               <Settings size={16} />
-              <span>Settings</span>
+              {!collapsed && <span>Settings</span>}
             </motion.div>
           )}
         </NavLink>
+
+        <button
+          onClick={toggleCollapsed}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className={cn('w-full flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer', collapsed ? 'justify-center px-0' : 'px-3')}
+          style={{ color: 'var(--tf-text-faint)' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--tf-bg-tertiary)')}
+          onMouseLeave={e => (e.currentTarget.style.background = '')}
+        >
+          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          {!collapsed && <span>Collapse</span>}
+        </button>
       </div>
     </aside>
   )
