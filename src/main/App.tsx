@@ -18,6 +18,7 @@ import { TaskPreviewModal } from '@/components/TaskPreviewModal'
 import { ShortcutHelp } from '@/components/ShortcutHelp'
 import { CheckinDialog } from '@/components/CheckinDialog'
 import { LockoutDialog } from '@/components/LockoutDialog'
+import { OnboardingModal } from '@/components/OnboardingModal'
 import { Dialog } from '@/components/ui/Dialog'
 import { CreateTaskForm } from '@/components/CreateTaskForm'
 import { EditTaskForm } from '@/components/EditTaskForm'
@@ -83,6 +84,7 @@ export function App() {
 
       <CheckinDialog />
       <LockoutDialog />
+      <OnboardingModal />
 
       <Dialog open={showCreateTask} onClose={() => setShowCreateTask(false)} title="New Task">
         <CreateTaskForm

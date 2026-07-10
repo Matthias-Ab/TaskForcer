@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { ipc } from '@/lib/ipc'
 import { toast } from 'sonner'
-import { Download, Upload, Trash2, RefreshCw, Sun, Moon } from 'lucide-react'
+import { Download, Upload, Trash2, RefreshCw, Sun, Moon, PlayCircle } from 'lucide-react'
 
 export function SettingsView() {
   const { settings, loading, setSetting } = useSettings()
@@ -189,6 +189,10 @@ export function SettingsView() {
             <Button variant="ghost" size="sm" onClick={resetStreaks} className="!text-amber-500">
               <RefreshCw size={14} />
               Reset Streaks
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setSetting('onboarding_complete', 'false')}>
+              <PlayCircle size={14} />
+              Replay Welcome Tour
             </Button>
           </div>
         </Section>
