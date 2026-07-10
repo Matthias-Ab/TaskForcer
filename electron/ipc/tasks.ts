@@ -189,6 +189,18 @@ export function registerTaskIpc(): void {
 
   ipcMain.handle('tasks:start', (_e, id: string) => {
     const db = getDb()
+
+    const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as Record<string, unknown> | undefined
+    const task = row ? parseTask(row) : null
+    if (task?.blocked_by.length) {
+      const blockers = db.prepare(
+        `SELECT title FROM tasks WHERE id IN (${task.blocked_by.map(() => '?').join(',')}) AND status NOT IN ('completed', 'cancelled')`
+      ).all(...task.blocked_by) as { title: string }[]
+      if (blockers.length) {
+        throw new Error(`Blocked by: ${blockers.map(b => b.title).join(', ')}`)
+      }
+    }
+
     db.prepare(`UPDATE tasks SET status = 'pending' WHERE status = 'in_progress' AND id != ?`).run(id)
     db.prepare(`UPDATE tasks SET status = 'in_progress' WHERE id = ?`).run(id)
     // Defensively close any session left open by a prior task that never got an explicit stop event
@@ -197,8 +209,8 @@ export function registerTaskIpc(): void {
     const sessionId = randomUUID()
     db.prepare(`INSERT INTO sessions (id, task_id, started_at) VALUES (?, ?, ?)`).run(sessionId, id, Date.now())
 
-    const row = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as Record<string, unknown> | undefined
-    return { task: row ? parseTask(row) : null, sessionId }
+    const updatedRow = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as Record<string, unknown> | undefined
+    return { task: updatedRow ? parseTask(updatedRow) : null, sessionId }
   })
 
   ipcMain.handle('tasks:snooze', (_e, id: string, minutes: number) => {

@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Input, Textarea } from './ui/Input'
+import { TagInput } from './ui/TagInput'
 import { Button } from './ui/Button'
 import { scaleIn } from '@/lib/animations'
-import { Task } from '@/hooks/useTasks'
+import { Task, useAllTags } from '@/hooks/useTasks'
+import { TaskAdvancedFields, advancedFieldsFromTask, advancedFieldsToTaskData, AdvancedFieldsValue } from './TaskAdvancedFields'
 
 interface CreateTaskFormProps {
   onSubmit: (data: Partial<Task>) => Promise<unknown>
@@ -25,9 +27,11 @@ export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTa
   const [priority, setPriority] = useState<Task['priority']>('medium')
   const [dueDate, setDueDate] = useState('')
   const [estimate, setEstimate] = useState('30')
-  const [tags, setTags] = useState('')
+  const [tags, setTags] = useState<string[]>([])
   const [recurrence, setRecurrence] = useState('')
+  const [advanced, setAdvanced] = useState<AdvancedFieldsValue>(advancedFieldsFromTask())
   const [loading, setLoading] = useState(false)
+  const allTags = useAllTags()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -39,15 +43,17 @@ export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTa
       priority,
       due_at: dueDate ? new Date(dueDate).getTime() : null,
       estimate_minutes: parseInt(estimate) || 30,
-      tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+      tags,
       recurrence_rule: recurrence || null,
+      ...(compact ? {} : advancedFieldsToTaskData(advanced)),
     })
     setTitle('')
     setDescription('')
     setDueDate('')
     setEstimate('30')
-    setTags('')
+    setTags([])
     setRecurrence('')
+    setAdvanced(advancedFieldsFromTask())
     setLoading(false)
     setOpen(false)
   }
@@ -110,10 +116,11 @@ export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTa
                   min="1"
                 />
               </div>
-              <Input
-                placeholder="Tags (comma-separated)"
+              <TagInput
+                placeholder="Tags..."
                 value={tags}
-                onChange={e => setTags(e.target.value)}
+                onChange={setTags}
+                suggestions={allTags}
               />
               <div className="flex gap-2 justify-end">
                 <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
@@ -175,11 +182,12 @@ export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTa
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Input
+        <TagInput
           label="Tags"
           placeholder="work, health, learning"
           value={tags}
-          onChange={e => setTags(e.target.value)}
+          onChange={setTags}
+          suggestions={allTags}
         />
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium" style={{ color: 'var(--tf-text-muted)' }}>Recurrence</label>
@@ -196,6 +204,7 @@ export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTa
           </select>
         </div>
       </div>
+      <TaskAdvancedFields value={advanced} onChange={setAdvanced} />
       <div className="flex gap-2 justify-end pt-2">
         {onCancel && (
           <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>

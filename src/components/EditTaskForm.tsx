@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { Input, Textarea } from './ui/Input'
+import { TagInput } from './ui/TagInput'
 import { Button } from './ui/Button'
-import { Task } from '@/hooks/useTasks'
+import { Task, useAllTags } from '@/hooks/useTasks'
+import { TaskAdvancedFields, advancedFieldsFromTask, advancedFieldsToTaskData } from './TaskAdvancedFields'
 
 interface EditTaskFormProps {
   task: Task
@@ -28,9 +30,11 @@ export function EditTaskForm({ task, onSubmit, onCancel }: EditTaskFormProps) {
   const [priority, setPriority] = useState<Task['priority']>(task.priority)
   const [dueDate, setDueDate] = useState(tsToDatetimeLocal(task.due_at))
   const [estimate, setEstimate] = useState(String(task.estimate_minutes || 30))
-  const [tags, setTags] = useState((task.tags || []).join(', '))
+  const [tags, setTags] = useState<string[]>(task.tags || [])
   const [recurrence, setRecurrence] = useState(task.recurrence_rule || '')
+  const [advanced, setAdvanced] = useState(advancedFieldsFromTask(task))
   const [loading, setLoading] = useState(false)
+  const allTags = useAllTags()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -42,8 +46,9 @@ export function EditTaskForm({ task, onSubmit, onCancel }: EditTaskFormProps) {
       priority,
       due_at: dueDate ? new Date(dueDate).getTime() : null,
       estimate_minutes: parseInt(estimate) || 30,
-      tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+      tags,
       recurrence_rule: recurrence || null,
+      ...advancedFieldsToTaskData(advanced),
     })
     setLoading(false)
   }
@@ -93,11 +98,12 @@ export function EditTaskForm({ task, onSubmit, onCancel }: EditTaskFormProps) {
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Input
+        <TagInput
           label="Tags"
           placeholder="work, health, learning"
           value={tags}
-          onChange={e => setTags(e.target.value)}
+          onChange={setTags}
+          suggestions={allTags}
         />
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium" style={{ color: 'var(--tf-text-muted)' }}>Recurrence</label>
@@ -114,6 +120,8 @@ export function EditTaskForm({ task, onSubmit, onCancel }: EditTaskFormProps) {
           </select>
         </div>
       </div>
+      <TaskAdvancedFields value={advanced} onChange={setAdvanced} excludeTaskId={task.id} defaultOpen />
+
       <div className="flex gap-2 justify-end pt-2">
         <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
         <Button type="submit" variant="primary" disabled={!title.trim() || loading}>

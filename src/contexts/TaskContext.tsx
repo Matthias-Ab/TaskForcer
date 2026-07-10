@@ -3,6 +3,13 @@ import { ipc } from '@/lib/ipc'
 import { toast } from 'sonner'
 import { Task } from '@/hooks/useTasks'
 
+// IPC errors arrive wrapped, e.g. "Error invoking remote handler for 'tasks:start': Error: Blocked by: X, Y"
+function extractBlockedByMessage(err: unknown): string | null {
+  const message = err instanceof Error ? err.message : String(err)
+  const match = message.match(/Blocked by: .+$/)
+  return match ? match[0] : null
+}
+
 interface TaskContextValue {
   tasks: Task[]
   loading: boolean
@@ -120,9 +127,9 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         await ipc.invoke('focus:start', sessionId, id)
       }
       return updated
-    } catch {
+    } catch (err) {
       setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'pending' as const } : t))
-      toast.error('Failed to start task')
+      toast.error(extractBlockedByMessage(err) ?? 'Failed to start task')
       return null
     }
   }, [])

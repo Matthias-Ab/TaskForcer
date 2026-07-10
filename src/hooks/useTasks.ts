@@ -37,3 +37,11 @@ export function useAllTasks(filter?: { status?: string }) {
 
   return { tasks, loading, reload: load, setTasks }
 }
+
+/** All distinct tags in use across every task, for autocomplete. */
+export function useAllTags(): string[] {
+  const { tasks } = useAllTasks()
+  const set = new Set<string>()
+  for (const t of tasks) for (const tag of t.tags || []) set.add(tag)
+  return Array.from(set).sort()
+}
