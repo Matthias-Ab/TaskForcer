@@ -1,5 +1,5 @@
 import { Notification } from 'electron'
-import { getDb } from './db'
+import { getDb, getSetting } from './db'
 import { addShameEntry } from './forcing'
 import { randomUUID } from 'crypto'
 import { calculateTodayScore } from './ipc/scores'
@@ -142,6 +142,7 @@ const notifiedIds = new Set<string>()
 const overdueNotifiedIds = new Set<string>()
 
 function checkUpcomingNotifications(): void {
+  if (getSetting('notify_due_soon') === 'false') return
   const db = getDb()
   const now = Date.now()
   const in15 = now + 15 * 60 * 1000
@@ -161,6 +162,7 @@ function checkUpcomingNotifications(): void {
 }
 
 function checkOverdueNotifications(): void {
+  if (getSetting('notify_overdue') === 'false') return
   const db = getDb()
   const now = Date.now()
   // Tasks that just became overdue in the last 2 minutes

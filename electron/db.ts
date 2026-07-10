@@ -195,6 +195,9 @@ function seedSettings(db: import('better-sqlite3').Database): void {
     work_start: '09:00',
     work_end: '18:00',
     checkin_interval_min: '25',
+    checkin_interval_critical: '15',
+    checkin_interval_medium: '25',
+    checkin_interval_low: '40',
     lockout_threshold: '50',
     idle_threshold_min: '10',
     auto_launch: 'false',
@@ -203,6 +206,9 @@ function seedSettings(db: import('better-sqlite3').Database): void {
     focus_tracking: 'true',
     shame_log_public: 'false',
     roast_mode: 'true',
+    notify_due_soon: 'true',
+    notify_overdue: 'true',
+    notify_idle: 'true',
   }
   const insert = db.prepare(`INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)`)
   for (const [k, v] of Object.entries(defaults)) insert.run(k, v)

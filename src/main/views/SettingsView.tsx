@@ -138,14 +138,32 @@ export function SettingsView() {
         {/* Forcing settings */}
         <Section title="Forcing Mechanisms">
           <div className="space-y-4">
-            <Input
-              label="Check-in interval (minutes)"
-              type="number"
-              value={settings.checkin_interval_min || '25'}
-              onChange={e => setSetting('checkin_interval_min', e.target.value)}
-              min="5"
-              max="120"
-            />
+            <div>
+              <p className="text-xs font-medium mb-2" style={{ color: 'var(--tf-text-muted)' }}>Check-in interval by priority (minutes)</p>
+              <div className="grid grid-cols-3 gap-3">
+                <Input
+                  label="Critical"
+                  type="number"
+                  value={settings.checkin_interval_critical || '15'}
+                  onChange={e => setSetting('checkin_interval_critical', e.target.value)}
+                  min="5" max="120"
+                />
+                <Input
+                  label="Medium"
+                  type="number"
+                  value={settings.checkin_interval_medium || '25'}
+                  onChange={e => setSetting('checkin_interval_medium', e.target.value)}
+                  min="5" max="120"
+                />
+                <Input
+                  label="Low"
+                  type="number"
+                  value={settings.checkin_interval_low || '40'}
+                  onChange={e => setSetting('checkin_interval_low', e.target.value)}
+                  min="5" max="120"
+                />
+              </div>
+            </div>
             <Input
               label="End-of-day lockout threshold (score 0–100)"
               type="number"
@@ -160,6 +178,27 @@ export function SettingsView() {
               value={settings.idle_threshold_min || '10'}
               onChange={e => setSetting('idle_threshold_min', e.target.value)}
               min="5"
+            />
+          </div>
+        </Section>
+
+        {/* Notifications */}
+        <Section title="Notifications">
+          <div className="space-y-4">
+            <Toggle
+              label="Notify when a task is due in 15 minutes"
+              checked={settings.notify_due_soon !== 'false'}
+              onChange={v => setSetting('notify_due_soon', v ? 'true' : 'false')}
+            />
+            <Toggle
+              label="Notify when a task becomes overdue"
+              checked={settings.notify_overdue !== 'false'}
+              onChange={v => setSetting('notify_overdue', v ? 'true' : 'false')}
+            />
+            <Toggle
+              label="Notify when idle with critical tasks pending"
+              checked={settings.notify_idle !== 'false'}
+              onChange={v => setSetting('notify_idle', v ? 'true' : 'false')}
             />
           </div>
         </Section>

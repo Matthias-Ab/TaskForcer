@@ -42,10 +42,28 @@ export function addShameEntry(entry: {
   return { id, type: entry.type, task_id: entry.task_id ?? null, message, created_at }
 }
 
+const DEFAULT_CHECKIN_INTERVALS: Record<string, string> = {
+  critical: 'checkin_interval_critical',
+  medium: 'checkin_interval_medium',
+  low: 'checkin_interval_low',
+}
+const DEFAULT_CHECKIN_MINUTES: Record<string, string> = {
+  critical: '15',
+  medium: '25',
+  low: '40',
+}
+
 export function startCheckinSchedule(taskId: string): void {
   stopCheckinSchedule()
   activeTaskId = taskId
-  const intervalMin = parseInt(getSetting('checkin_interval_min') || '25', 10)
+
+  const db = getDb()
+  const task = db.prepare('SELECT priority FROM tasks WHERE id = ?').get(taskId) as { priority: string } | undefined
+  const priority = task?.priority || 'medium'
+  const settingKey = DEFAULT_CHECKIN_INTERVALS[priority] || 'checkin_interval_medium'
+  const fallback = DEFAULT_CHECKIN_MINUTES[priority] || '25'
+  const intervalMin = parseInt(getSetting(settingKey) || getSetting('checkin_interval_min') || fallback, 10)
+
   checkinInterval = setInterval(() => showCheckinDialog(taskId), intervalMin * 60 * 1000)
 }
 
@@ -82,7 +100,7 @@ export function startIdleDetection(): void {
 
 function escalateIdleNag(idleSeconds: number, thresholdMin: number): void {
   const mins = Math.floor(idleSeconds / 60)
-  if (Notification.isSupported()) {
+  if (getSetting('notify_idle') !== 'false' && Notification.isSupported()) {
     new Notification({
       title: 'TaskForcer: You have critical tasks!',
       body: `You've been idle for ${mins} minutes.`,
