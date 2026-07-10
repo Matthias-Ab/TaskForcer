@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { FixedSizeList as List, ListChildComponentProps } from 'react-window'
 import { motion } from 'framer-motion'
 import { ipc } from '@/lib/ipc'
 import { pageTransition } from '@/lib/animations'
 import { Button } from '@/components/ui/Button'
-import { Skull, Trash2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Input } from '@/components/ui/Input'
+import { Skull, Trash2, Search, X } from 'lucide-react'
+import { cn, debounce } from '@/lib/utils'
 import { toast } from 'sonner'
 
 interface ShameEntry {
@@ -14,6 +15,13 @@ interface ShameEntry {
   task_id: string | null
   message: string
   created_at: number
+}
+
+interface ShameFilters {
+  type?: ShameEntry['type']
+  search?: string
+  from?: number
+  to?: number
 }
 
 const TYPE_COLORS: Record<ShameEntry['type'], string> = {
@@ -32,29 +40,67 @@ const TYPE_LABELS: Record<ShameEntry['type'], string> = {
   excuse: 'Excuse',
 }
 
+const PAGE_SIZE = 100
+
 export function ShameLogView() {
   const [entries, setEntries] = useState<ShameEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<ShameEntry['type'] | 'all'>('all')
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const [totalCount, setTotalCount] = useState(0)
+  const [filterType, setFilterType] = useState<ShameEntry['type'] | 'all'>('all')
+  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
+  const filters: ShameFilters = useMemo(() => ({
+    type: filterType === 'all' ? undefined : filterType,
+    search: search.trim() || undefined,
+    from: dateFrom ? new Date(dateFrom).setHours(0, 0, 0, 0) : undefined,
+    to: dateTo ? new Date(dateTo).setHours(23, 59, 59, 999) : undefined,
+  }), [filterType, search, dateFrom, dateTo])
+
+  const debouncedSetSearch = useRef(debounce((...args: unknown[]) => setSearch(args[0] as string), 300)).current
+
+  useEffect(() => { debouncedSetSearch(searchInput) }, [searchInput, debouncedSetSearch])
 
   const load = useCallback(async () => {
-    const data = await ipc.invoke<ShameEntry[]>('shame:list', 500, 0)
+    setLoading(true)
+    const [data, count] = await Promise.all([
+      ipc.invoke<ShameEntry[]>('shame:list', PAGE_SIZE, 0, filters),
+      ipc.invoke<number>('shame:count', filters),
+    ])
     setEntries(data)
+    setTotalCount(count)
+    setHasMore(data.length < count)
     setLoading(false)
-  }, [])
+  }, [filters])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load().catch(() => setLoading(false)) }, [load])
 
-  const filtered = filter === 'all' ? entries : entries.filter(e => e.type === filter)
+  async function loadMore() {
+    setLoadingMore(true)
+    try {
+      const data = await ipc.invoke<ShameEntry[]>('shame:list', PAGE_SIZE, entries.length, filters)
+      setEntries(prev => [...prev, ...data])
+      setHasMore(entries.length + data.length < totalCount)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   async function clearLog() {
     if (!confirm('Clear your entire shame log? This cannot be undone.')) return
     await ipc.invoke('shame:clear')
     setEntries([])
+    setTotalCount(0)
+    setHasMore(false)
     toast.success('Shame log cleared')
   }
 
   const ITEM_HEIGHT = 72
+  const hasActiveFilters = filterType !== 'all' || !!search || !!dateFrom || !!dateTo
 
   return (
     <motion.div
@@ -70,7 +116,7 @@ export function ShameLogView() {
           <Skull size={18} className="text-red-500" />
           <div>
             <h1 className="text-lg font-semibold text-zinc-100">Shame Log</h1>
-            <p className="text-xs text-zinc-500">{entries.length} entries of failure</p>
+            <p className="text-xs text-zinc-500">{totalCount} entries of failure</p>
           </div>
         </div>
         <Button size="sm" variant="ghost" onClick={clearLog} className="text-red-500 hover:text-red-400">
@@ -79,55 +125,84 @@ export function ShameLogView() {
         </Button>
       </div>
 
-      {/* Filters */}
+      {/* Search + date range */}
+      <div className="flex flex-wrap items-end gap-3 px-6 py-3 border-b border-zinc-800/40 flex-shrink-0">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search size={14} className="absolute left-3 top-[38px] -translate-y-1/2 text-zinc-600" />
+          <Input
+            label="Search"
+            placeholder="Search messages..."
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
+            className="pl-8"
+          />
+        </div>
+        <Input label="From" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+        <Input label="To" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+        {hasActiveFilters && (
+          <Button size="sm" variant="ghost" onClick={() => { setFilterType('all'); setSearchInput(''); setSearch(''); setDateFrom(''); setDateTo('') }}>
+            <X size={12} /> Clear filters
+          </Button>
+        )}
+      </div>
+
+      {/* Type filter pills */}
       <div className="flex gap-2 px-6 py-3 border-b border-zinc-800/40 overflow-x-auto flex-shrink-0">
         {(['all', 'distraction', 'skipped_checkin', 'missed_task', 'late_completion', 'excuse'] as const).map(f => (
           <button
             key={f}
-            onClick={() => setFilter(f)}
+            onClick={() => setFilterType(f)}
             className={cn(
               'px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors',
-              filter === f
+              filterType === f
                 ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-600/30'
                 : 'text-zinc-500 hover:text-zinc-300 border border-zinc-800/60 hover:border-zinc-700'
             )}
           >
-            {f === 'all' ? `All (${entries.length})` : TYPE_LABELS[f]}
+            {f === 'all' ? 'All' : TYPE_LABELS[f]}
           </button>
         ))}
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-hidden px-6 py-4">
+      <div className="flex-1 overflow-hidden px-6 py-4 flex flex-col">
         {loading ? (
           <div className="space-y-2">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="h-16 rounded-xl bg-zinc-800/40 animate-pulse" />
             ))}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : entries.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <Skull size={36} className="text-zinc-700 mb-3" />
             <p className="text-zinc-500 text-sm">
-              {filter === 'all' ? 'No shame yet. Keep it that way.' : 'No entries of this type.'}
+              {hasActiveFilters ? 'No entries match these filters.' : 'No shame yet. Keep it that way.'}
             </p>
           </div>
-        ) : filtered.length > 50 ? (
+        ) : entries.length > 50 ? (
           <List
             height={500}
-            itemCount={filtered.length}
+            itemCount={entries.length}
             itemSize={ITEM_HEIGHT}
             width="100%"
           >
             {({ index, style }: ListChildComponentProps) => (
               <div style={style} className="pb-2">
-                <ShameRow entry={filtered[index]} />
+                <ShameRow entry={entries[index]} />
               </div>
             )}
           </List>
         ) : (
-          <div className="space-y-2">
-            {filtered.map(entry => <ShameRow key={entry.id} entry={entry} />)}
+          <div className="space-y-2 overflow-y-auto">
+            {entries.map(entry => <ShameRow key={entry.id} entry={entry} />)}
+          </div>
+        )}
+
+        {!loading && hasMore && (
+          <div className="pt-3 flex-shrink-0 flex justify-center">
+            <Button size="sm" variant="secondary" onClick={loadMore} disabled={loadingMore}>
+              {loadingMore ? 'Loading...' : `Load more (${totalCount - entries.length} remaining)`}
+            </Button>
           </div>
         )}
       </div>
