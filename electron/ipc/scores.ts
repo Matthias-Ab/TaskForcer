@@ -98,13 +98,22 @@ export function calculateTodayScore(): DailyScore {
   const totalEstimateSec = allTasks.reduce((s, t) => s + (t.estimate_minutes || 30), 0) * 60
   const focusPct = totalEstimateSec > 0 ? Math.min(1, activeSeconds / totalEstimateSec) : 0
   const completionPct = allTasks.length > 0 ? completedAll.length / allTasks.length : 0
-  const criticalPct = critical.length > 0 ? completedCritical.length / critical.length : 1
+  const hasCritical = critical.length > 0
+  const criticalPct = hasCritical ? completedCritical.length / critical.length : 0
+
+  // When there are no critical tasks today, redistribute critical's weight into completion
+  // instead of defaulting criticalPct to 1 -- otherwise every day with no critical tasks
+  // (including a fresh install with zero tasks at all) scored a free 50/100 no matter what
+  // actually got done.
+  const weights = hasCritical
+    ? { critical: 0.5, completion: 0.3, focus: 0.2 }
+    : { critical: 0, completion: 0.8, focus: 0.2 }
 
   const checkinPenalties = (db.prepare("SELECT COUNT(*) as c FROM shame_log WHERE type='skipped_checkin' AND date(created_at/1000,'unixepoch')=?").get(today) as { c: number })?.c || 0
   const distractionPenalties = (db.prepare("SELECT COUNT(*) as c FROM shame_log WHERE type='distraction' AND date(created_at/1000,'unixepoch')=?").get(today) as { c: number })?.c || 0
   const missedPenalties = (db.prepare("SELECT COUNT(*) as c FROM shame_log WHERE type='missed_task' AND date(created_at/1000,'unixepoch')=?").get(today) as { c: number })?.c || 0
 
-  const rawScore = (0.5 * criticalPct + 0.3 * completionPct + 0.2 * focusPct) * 100
+  const rawScore = (weights.critical * criticalPct + weights.completion * completionPct + weights.focus * focusPct) * 100
     - checkinPenalties * 5 - distractionPenalties * 3 - missedPenalties * 10
   const score = Math.max(0, Math.min(100, rawScore))
 
