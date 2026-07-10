@@ -7,13 +7,14 @@ import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { ipc } from '@/lib/ipc'
 import { toast } from 'sonner'
-import { Download, Upload, Trash2, RefreshCw, Sun, Moon, PlayCircle, CalendarDays } from 'lucide-react'
+import { Download, Upload, Trash2, RefreshCw, Sun, Moon, PlayCircle, CalendarDays, Lock } from 'lucide-react'
 
 export function SettingsView() {
   const { settings, loading, setSetting } = useSettings()
   const { theme, toggleTheme } = useTheme()
   const importInputRef = useRef<HTMLInputElement>(null)
   const importIcsRef = useRef<HTMLInputElement>(null)
+  const importEncryptedRef = useRef<HTMLInputElement>(null)
 
   if (loading) return null
 
@@ -42,6 +43,37 @@ export function SettingsView() {
       setTimeout(() => window.location.reload(), 800)
     } catch (err) {
       toast.error(`Import failed: ${err instanceof Error ? err.message : 'invalid file'}`)
+    }
+  }
+
+  async function exportEncrypted() {
+    const result = await ipc.invoke<{ data: string; encrypted: boolean }>('settings:export-encrypted')
+    const blob = new Blob([result.data], { type: 'application/octet-stream' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `taskforcer-backup-${new Date().toISOString().split('T')[0]}.tfbackup`
+    a.click()
+    URL.revokeObjectURL(url)
+    if (result.encrypted) {
+      toast.success('Encrypted backup exported — only restorable on this computer, by this user')
+    } else {
+      toast.warning('Backup exported, but this system has no OS keychain available — it was NOT encrypted')
+    }
+  }
+
+  async function importEncrypted(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!confirm('Importing will REPLACE all current tasks, sessions, scores, and settings with the contents of this backup. This cannot be undone. Continue?')) return
+    try {
+      const data = await file.text()
+      await ipc.invoke('settings:import-encrypted', { data })
+      toast.success('Backup restored — reloading...')
+      setTimeout(() => window.location.reload(), 800)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Restore failed')
     }
   }
 
@@ -255,6 +287,15 @@ export function SettingsView() {
             <Button variant="secondary" size="sm" onClick={() => importIcsRef.current?.click()}>
               <CalendarDays size={14} />
               Import Calendar (.ics)
+            </Button>
+            <Button variant="secondary" size="sm" onClick={exportEncrypted}>
+              <Lock size={14} />
+              Export Encrypted Backup
+            </Button>
+            <input ref={importEncryptedRef} type="file" accept=".tfbackup" className="hidden" onChange={importEncrypted} />
+            <Button variant="secondary" size="sm" onClick={() => importEncryptedRef.current?.click()}>
+              <Lock size={14} />
+              Restore Encrypted Backup
             </Button>
             <Button variant="ghost" size="sm" onClick={clearShameLog} className="!text-red-500">
               <Trash2 size={14} />
