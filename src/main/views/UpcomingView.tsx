@@ -1,22 +1,44 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { ipc } from '@/lib/ipc'
 import { Task } from '@/hooks/useTasks'
+import { useTaskContext } from '@/contexts/TaskContext'
+import { useTemplates } from '@/hooks/useTemplates'
 import { pageTransition } from '@/lib/animations'
 import { TaskSkeletonList } from '@/components/ui/Skeleton'
-import { cn, formatDate, isOverdue, priorityDotColor } from '@/lib/utils'
-import { Clock, CheckSquare2, AlertTriangle, Circle, Siren } from 'lucide-react'
+import { TaskCard } from '@/components/TaskCard'
+import { TaskPreviewModal } from '@/components/TaskPreviewModal'
+import { Dialog } from '@/components/ui/Dialog'
+import { EditTaskForm } from '@/components/EditTaskForm'
+import { CheckSquare2, Siren, Circle } from 'lucide-react'
 
 export function UpcomingView() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
+  const [previewTask, setPreviewTask] = useState<Task | null>(null)
+  const { completeTask, startTask, snoozeTask, deleteTask, updateTask } = useTaskContext()
+  const { saveTemplate: _saveTemplate } = useTemplates()
+  const saveTemplate = useCallback((task: Task, name: string) => _saveTemplate(name, task), [_saveTemplate])
 
-  useEffect(() => {
-    ipc.invoke<Task[]>('tasks:upcoming').then(data => {
-      setTasks(data)
-      setLoading(false)
-    }).catch(() => setLoading(false))
+  const reload = useCallback(async () => {
+    const data = await ipc.invoke<Task[]>('tasks:upcoming')
+    setTasks(data)
+    setLoading(false)
   }, [])
+
+  useEffect(() => { reload().catch(() => setLoading(false)) }, [reload])
+
+  // Upcoming keeps its own task list (a 7-day window, distinct from the "today"
+  // scope TaskContext tracks), so mutations there don't auto-sync here -- reload after each.
+  const withReload = useCallback(<A extends unknown[]>(fn: (...a: A) => Promise<unknown>) =>
+    async (...a: A) => { await fn(...a); await reload() },
+  [reload])
+
+  const handleComplete = withReload(completeTask)
+  const handleStart = withReload(startTask)
+  const handleSnooze = withReload(snoozeTask)
+  const handleDelete = withReload(deleteTask)
 
   const overdue = tasks.filter(t => t.due_at && t.due_at < Date.now())
   const upcoming = tasks.filter(t => !t.due_at || t.due_at >= Date.now())
@@ -39,6 +61,16 @@ export function UpcomingView() {
   }
 
   const total = tasks.length
+
+  const rowProps = {
+    onComplete: handleComplete,
+    onStart: handleStart,
+    onSnooze: handleSnooze,
+    onDelete: handleDelete,
+    onEdit: setEditingTask,
+    onPreview: setPreviewTask,
+    onSaveTemplate: saveTemplate,
+  }
 
   return (
     <motion.div
@@ -78,8 +110,8 @@ export function UpcomingView() {
                     {overdue.length}
                   </span>
                 </div>
-                <div className="space-y-1">
-                  {overdue.map(task => <UpcomingTaskRow key={task.id} task={task} overdue />)}
+                <div className="space-y-1.5">
+                  {overdue.map(task => <TaskCard key={task.id} task={task} {...rowProps} />)}
                 </div>
               </div>
             )}
@@ -93,7 +125,7 @@ export function UpcomingView() {
                     : <Circle size={13} style={{ color: 'var(--tf-text-faint)' }} />
                   }
                   <span
-                    className={cn('text-xs font-semibold uppercase tracking-wider', group.isToday ? 'text-indigo-400' : '')}
+                    className={group.isToday ? 'text-xs font-semibold uppercase tracking-wider text-indigo-400' : 'text-xs font-semibold uppercase tracking-wider'}
                     style={group.isToday ? {} : { color: 'var(--tf-text-muted)' }}
                   >
                     {group.label}
@@ -102,62 +134,34 @@ export function UpcomingView() {
                     {group.tasks.length}
                   </span>
                 </div>
-                <div className="space-y-1">
-                  {group.tasks.map(task => <UpcomingTaskRow key={task.id} task={task} />)}
+                <div className="space-y-1.5">
+                  {group.tasks.map(task => <TaskCard key={task.id} task={task} {...rowProps} />)}
                 </div>
               </div>
             ))}
           </>
         )}
       </div>
+
+      <TaskPreviewModal
+        task={previewTask}
+        onClose={() => setPreviewTask(null)}
+        onEdit={(task) => { setPreviewTask(null); setEditingTask(task) }}
+        onComplete={handleComplete}
+        onDelete={handleDelete}
+        onStart={handleStart}
+        onSnooze={handleSnooze}
+      />
+
+      <Dialog open={!!editingTask} onClose={() => setEditingTask(null)} title="Edit Task" size="md">
+        {editingTask && (
+          <EditTaskForm
+            task={editingTask}
+            onSubmit={async (data) => { await updateTask(editingTask.id, data); setEditingTask(null); await reload() }}
+            onCancel={() => setEditingTask(null)}
+          />
+        )}
+      </Dialog>
     </motion.div>
-  )
-}
-
-function UpcomingTaskRow({ task, overdue: isOverdueRow }: { task: Task; overdue?: boolean }) {
-  const overdue = isOverdueRow || (isOverdue(task.due_at) && task.status !== 'completed')
-  return (
-    <div
-      className="flex items-center gap-3 px-4 py-2.5 rounded-xl border transition-colors"
-      style={{
-        background: overdue ? 'rgba(239,68,68,0.05)' : 'var(--tf-card-bg)',
-        borderColor: overdue ? 'rgba(239,68,68,0.25)' : 'var(--tf-card-border)',
-      }}
-    >
-      <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', priorityDotColor(task.priority))} />
-
-      <span className="text-sm flex-1 truncate" style={{ color: 'var(--tf-text)' }}>{task.title}</span>
-
-      {task.tags?.length > 0 && (
-        <div className="hidden sm:flex gap-1">
-          {task.tags.slice(0, 2).map(tag => (
-            <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-md" style={{ background: 'var(--tf-bg-tertiary)', color: 'var(--tf-text-muted)' }}>
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {task.priority === 'critical' && (
-        <AlertTriangle size={11} className="text-red-400 flex-shrink-0" />
-      )}
-
-      {task.estimate_minutes ? (
-        <span className="text-xs font-mono flex-shrink-0" style={{ color: 'var(--tf-text-faint)' }}>
-          {task.estimate_minutes}m
-        </span>
-      ) : null}
-
-      {task.due_at && (
-        <span className={cn('text-xs font-mono flex items-center gap-1 flex-shrink-0', overdue ? 'text-red-400' : '')}
-          style={overdue ? {} : { color: 'var(--tf-text-faint)' }}>
-          <Clock size={10} />
-          {overdue
-            ? formatDate(task.due_at)
-            : new Date(task.due_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          }
-        </span>
-      )}
-    </div>
   )
 }

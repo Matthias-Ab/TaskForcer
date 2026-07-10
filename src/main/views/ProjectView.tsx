@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -14,10 +14,13 @@ import { ipc } from '@/lib/ipc'
 import { Task } from '@/hooks/useTasks'
 import { useProjects } from '@/hooks/useProjects'
 import { useTaskContext } from '@/contexts/TaskContext'
+import { useTemplates } from '@/hooks/useTemplates'
 import { pageTransition } from '@/lib/animations'
 import { CreateTaskForm } from '@/components/CreateTaskForm'
-import { cn, formatDate, isOverdue, priorityDotColor } from '@/lib/utils'
-import { CheckSquare2, GripVertical, Pencil, Trash2, CheckCheck } from 'lucide-react'
+import { TaskCard } from '@/components/TaskCard'
+import { TaskPreviewModal } from '@/components/TaskPreviewModal'
+import { EditTaskForm } from '@/components/EditTaskForm'
+import { CheckSquare2, Pencil, Trash2, CheckCheck } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { toast } from 'sonner'
@@ -25,27 +28,45 @@ import { toast } from 'sonner'
 export function ProjectView() {
   const { projectId } = useParams<{ projectId: string }>()
   const { projects, updateProject, deleteProject } = useProjects()
-  const { completeTask, deleteTask, createTask } = useTaskContext()
+  const { completeTask, startTask, snoozeTask, deleteTask, updateTask, createTask } = useTaskContext()
+  const { saveTemplate: _saveTemplate } = useTemplates()
+  const saveTemplate = useCallback((task: Task, name: string) => _saveTemplate(name, task), [_saveTemplate])
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [editingProject, setEditingProject] = useState(false)
   const [projectName, setProjectName] = useState('')
   const [projectEmoji, setProjectEmoji] = useState('')
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
+  const [previewTask, setPreviewTask] = useState<Task | null>(null)
 
   const project = projects.find(p => p.id === projectId)
 
-  useEffect(() => {
+  const reload = useCallback(async () => {
     if (!projectId) return
-    setLoading(true)
-    ipc.invoke<Task[]>('projects:tasks', projectId).then(data => {
-      setTasks(data)
-      setLoading(false)
-    }).catch(() => setLoading(false))
+    const data = await ipc.invoke<Task[]>('projects:tasks', projectId)
+    setTasks(data)
+    setLoading(false)
   }, [projectId])
+
+  useEffect(() => {
+    setLoading(true)
+    reload().catch(() => setLoading(false))
+  }, [reload])
 
   useEffect(() => {
     if (project) { setProjectName(project.name); setProjectEmoji(project.emoji) }
   }, [project])
+
+  // ProjectView keeps its own task list, distinct from TaskContext's "today" scope,
+  // so mutations there don't auto-sync here -- reload after each.
+  const withReload = useCallback(<A extends unknown[]>(fn: (...a: A) => Promise<unknown>) =>
+    async (...a: A) => { await fn(...a); await reload() },
+  [reload])
+
+  const handleComplete = withReload(completeTask)
+  const handleStart = withReload(startTask)
+  const handleSnooze = withReload(snoozeTask)
+  const handleDelete = withReload(deleteTask)
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -78,6 +99,16 @@ export function ProjectView() {
   const active = tasks.filter(t => t.status !== 'completed')
   const done = tasks.filter(t => t.status === 'completed')
 
+  const cardProps = {
+    onComplete: handleComplete,
+    onStart: handleStart,
+    onSnooze: handleSnooze,
+    onDelete: handleDelete,
+    onEdit: setEditingTask,
+    onPreview: setPreviewTask,
+    onSaveTemplate: saveTemplate,
+  }
+
   return (
     <motion.div variants={pageTransition} initial="hidden" animate="visible" exit="exit" className="flex flex-col h-full overflow-hidden">
       {/* Header */}
@@ -108,18 +139,7 @@ export function ProjectView() {
               <SortableContext items={active.map(t => t.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-1.5">
                   {active.map(task => (
-                    <SortableTaskRow
-                      key={task.id}
-                      task={task}
-                      onComplete={() => {
-                        setTasks(prev => prev.map(t => t.id === task.id ? {...t, status: 'completed' as const} : t))
-                        completeTask(task.id)
-                      }}
-                      onDelete={() => {
-                        setTasks(prev => prev.filter(t => t.id !== task.id))
-                        deleteTask(task.id)
-                      }}
-                    />
+                    <SortableTaskCard key={task.id} task={task} {...cardProps} />
                   ))}
                 </div>
               </SortableContext>
@@ -129,8 +149,8 @@ export function ProjectView() {
             <CreateTaskForm
               compact
               onSubmit={async (data) => {
-                const created = await createTask({ ...data, project_id: projectId })
-                if (created) setTasks(prev => [...prev, created])
+                await createTask({ ...data, project_id: projectId })
+                await reload()
               }}
             />
 
@@ -190,30 +210,35 @@ export function ProjectView() {
           </div>
         </div>
       </Dialog>
+
+      <TaskPreviewModal
+        task={previewTask}
+        onClose={() => setPreviewTask(null)}
+        onEdit={(task) => { setPreviewTask(null); setEditingTask(task) }}
+        onComplete={handleComplete}
+        onDelete={handleDelete}
+        onStart={handleStart}
+        onSnooze={handleSnooze}
+      />
+
+      <Dialog open={!!editingTask} onClose={() => setEditingTask(null)} title="Edit Task" size="md">
+        {editingTask && (
+          <EditTaskForm
+            task={editingTask}
+            onSubmit={async (data) => { await updateTask(editingTask.id, data); setEditingTask(null); await reload() }}
+            onCancel={() => setEditingTask(null)}
+          />
+        )}
+      </Dialog>
     </motion.div>
   )
 }
 
-function SortableTaskRow({ task, onComplete, onDelete }: { task: Task; onComplete: () => void; onDelete: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id })
-  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
-  const overdue = isOverdue(task.due_at) && task.status !== 'completed'
-
+function SortableTaskCard(props: Parameters<typeof TaskCard>[0]) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.task.id })
   return (
-    <div ref={setNodeRef} style={{ ...style, borderColor: 'var(--tf-card-border)', background: 'var(--tf-card-bg)' }} className="group flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors">
-      <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: 'var(--tf-text-faint)' }}>
-        <GripVertical size={14} />
-      </button>
-      <button onClick={onComplete}
-        className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 hover:border-emerald-500 transition-colors border-zinc-500" />
-      <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', priorityDotColor(task.priority))} />
-      <span className="text-sm flex-1 truncate" style={{ color: overdue ? '#ef4444' : 'var(--tf-text)' }}>{task.title}</span>
-      {task.due_at && <span className={cn('text-[10px]', overdue ? 'text-red-400' : '')} style={overdue ? {} : { color: 'var(--tf-text-faint)' }}>{formatDate(task.due_at)}</span>}
-      <button onClick={onDelete} className="opacity-0 group-hover:opacity-100 transition-opacity p-1" style={{ color: 'var(--tf-text-faint)' }}
-        onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
-        onMouseLeave={e => (e.currentTarget.style.color = 'var(--tf-text-faint)')}>
-        <Trash2 size={12} />
-      </button>
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }} {...attributes} {...listeners}>
+      <TaskCard {...props} />
     </div>
   )
 }
