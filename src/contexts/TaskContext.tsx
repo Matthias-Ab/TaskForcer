@@ -148,31 +148,72 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // Deletes are staged for a few seconds before actually hitting the DB, so "Undo"
+  // can cancel the pending delete instead of having to resurrect a deleted row.
+  const UNDO_WINDOW_MS = 5000
+  const pendingDeletes = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+
   const deleteTask = useCallback(async (id: string) => {
     const task = tasksRef.current.find(t => t.id === id)
-    const wasInProgress = task?.status === 'in_progress'
+    if (!task) return
+    const wasInProgress = task.status === 'in_progress'
     setTasks(prev => prev.filter(t => t.id !== id))
-    try {
-      await ipc.invoke('tasks:delete', id)
-      if (wasInProgress) await ipc.invoke('task:stopped')
-    } catch {
-      if (task) setTasks(prev => [...prev, task])
-      toast.error('Failed to delete task')
-    }
+    if (wasInProgress) ipc.invoke('task:stopped').catch(() => {})
+
+    const timeoutId = setTimeout(async () => {
+      pendingDeletes.current.delete(id)
+      try {
+        await ipc.invoke('tasks:delete', id)
+      } catch {
+        setTasks(prev => prev.some(t => t.id === id) ? prev : [...prev, task])
+        toast.error('Failed to delete task')
+      }
+    }, UNDO_WINDOW_MS)
+    pendingDeletes.current.set(id, timeoutId)
+
+    toast(`Deleted "${task.title}"`, {
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          const pending = pendingDeletes.current.get(id)
+          if (!pending) return
+          clearTimeout(pending)
+          pendingDeletes.current.delete(id)
+          setTasks(prev => prev.some(t => t.id === id) ? prev : [...prev, task])
+        },
+      },
+    })
   }, [])
 
   const deleteTasks = useCallback(async (ids: string[]) => {
     const removed = tasksRef.current.filter(t => ids.includes(t.id))
+    if (!removed.length) return
     const hasActiveTask = removed.some(t => t.status === 'in_progress')
     setTasks(prev => prev.filter(t => !ids.includes(t.id)))
-    try {
-      await Promise.all(ids.map(id => ipc.invoke('tasks:delete', id)))
-      if (hasActiveTask) await ipc.invoke('task:stopped')
-      toast.success(`Deleted ${ids.length} task${ids.length > 1 ? 's' : ''}`)
-    } catch {
-      setTasks(prev => [...prev, ...removed])
-      toast.error('Failed to delete tasks')
-    }
+    if (hasActiveTask) ipc.invoke('task:stopped').catch(() => {})
+
+    const timeoutId = setTimeout(async () => {
+      for (const id of ids) pendingDeletes.current.delete(id)
+      try {
+        await Promise.all(ids.map(id => ipc.invoke('tasks:delete', id)))
+      } catch {
+        setTasks(prev => [...prev, ...removed.filter(t => !prev.some(p => p.id === t.id))])
+        toast.error('Failed to delete tasks')
+      }
+    }, UNDO_WINDOW_MS)
+    for (const id of ids) pendingDeletes.current.set(id, timeoutId)
+
+    toast(`Deleted ${ids.length} task${ids.length > 1 ? 's' : ''}`, {
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          if (!pendingDeletes.current.has(ids[0])) return
+          clearTimeout(timeoutId)
+          for (const id of ids) pendingDeletes.current.delete(id)
+          setTasks(prev => [...prev, ...removed.filter(t => !prev.some(p => p.id === t.id))])
+        },
+      },
+    })
   }, [])
 
   const completeTasks = useCallback(async (ids: string[]) => {

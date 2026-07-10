@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { ipc } from '@/lib/ipc'
 import { toast } from 'sonner'
+
+const UNDO_WINDOW_MS = 5000
 
 export interface Project {
   id: string
@@ -12,6 +14,7 @@ export interface Project {
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([])
+  const pendingDeletes = useRef(new Map<string, ReturnType<typeof setTimeout>>())
 
   const load = useCallback(async () => {
     const data = await ipc.invoke<Project[]>('projects:list')
@@ -43,14 +46,34 @@ export function useProjects() {
   }, [])
 
   const deleteProject = useCallback(async (id: string) => {
+    const project = projects.find(p => p.id === id)
+    if (!project) return
     setProjects(prev => prev.filter(p => p.id !== id))
-    try {
-      await ipc.invoke('projects:delete', id)
-    } catch {
-      toast.error('Failed to delete project')
-      load()
-    }
-  }, [load])
+
+    const timeoutId = setTimeout(async () => {
+      pendingDeletes.current.delete(id)
+      try {
+        await ipc.invoke('projects:delete', id)
+      } catch {
+        toast.error('Failed to delete project')
+        load()
+      }
+    }, UNDO_WINDOW_MS)
+    pendingDeletes.current.set(id, timeoutId)
+
+    toast(`Deleted project "${project.name}"`, {
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          const pending = pendingDeletes.current.get(id)
+          if (!pending) return
+          clearTimeout(pending)
+          pendingDeletes.current.delete(id)
+          setProjects(prev => prev.some(p => p.id === id) ? prev : [...prev, project])
+        },
+      },
+    })
+  }, [projects, load])
 
   return { projects, createProject, updateProject, deleteProject, reload: load }
 }
