@@ -14,6 +14,7 @@ export interface Task {
   created_at: number
   completed_at: number | null
   recurrence_rule: string | null
+  recurrence_end_at: number | null
   parent_task_id: string | null
   project_id: string | null
   sort_order: number
@@ -27,7 +28,7 @@ export interface Task {
 
 const UPDATABLE_FIELDS = new Set([
   'title', 'description', 'due_at', 'priority', 'estimate_minutes', 'status',
-  'completed_at', 'recurrence_rule', 'parent_task_id', 'project_id', 'sort_order',
+  'completed_at', 'recurrence_rule', 'recurrence_end_at', 'parent_task_id', 'project_id', 'sort_order',
   'blocked_by', 'elapsed_seconds', 'required_tools', 'allowed_urls', 'distraction_apps', 'tags',
 ])
 
@@ -42,6 +43,7 @@ export function parseTask(row: Record<string, unknown>): Task {
     project_id: (row.project_id as string) || null,
     sort_order: (row.sort_order as number) || 0,
     elapsed_seconds: (row.elapsed_seconds as number) || 0,
+    recurrence_end_at: (row.recurrence_end_at as number) || null,
   } as Task
 }
 
@@ -103,6 +105,7 @@ export function registerTaskIpc(): void {
       status: data.status || 'pending',
       completed_at: data.completed_at ?? null,
       recurrence_rule: data.recurrence_rule ?? null,
+      recurrence_end_at: data.recurrence_end_at ?? null,
       parent_task_id: data.parent_task_id ?? null,
       project_id: data.project_id ?? null,
       sort_order: data.sort_order ?? 0,
@@ -117,13 +120,13 @@ export function registerTaskIpc(): void {
     }
     db.prepare(`
       INSERT INTO tasks (id, title, description, due_at, priority, estimate_minutes, status,
-        created_at, completed_at, recurrence_rule, parent_task_id, project_id, sort_order,
+        created_at, completed_at, recurrence_rule, recurrence_end_at, parent_task_id, project_id, sort_order,
         blocked_by, elapsed_seconds, required_tools, allowed_urls, distraction_apps, tags)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       task.id, task.title, task.description, task.due_at, task.priority,
       task.estimate_minutes, task.status, task.created_at, task.completed_at,
-      task.recurrence_rule, task.parent_task_id, task.project_id, task.sort_order,
+      task.recurrence_rule, task.recurrence_end_at, task.parent_task_id, task.project_id, task.sort_order,
       JSON.stringify(task.blocked_by), task.elapsed_seconds,
       JSON.stringify(task.required_tools), JSON.stringify(task.allowed_urls),
       JSON.stringify(task.distraction_apps), JSON.stringify(task.tags)

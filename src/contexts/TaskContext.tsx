@@ -62,6 +62,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       created_at: Date.now(),
       completed_at: null,
       recurrence_rule: data.recurrence_rule ?? null,
+      recurrence_end_at: data.recurrence_end_at ?? null,
       parent_task_id: null,
       required_tools: [],
       allowed_urls: [],

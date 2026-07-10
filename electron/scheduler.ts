@@ -33,6 +33,8 @@ interface RecurringTask {
   priority: string
   estimate_minutes: number
   recurrence_rule: string
+  recurrence_end_at: number | null
+  project_id: string | null
   tags: string
   required_tools: string
   allowed_urls: string
@@ -68,6 +70,20 @@ function nextDueDate(rule: string, fromDate: Date, originalDueAt: number | null)
     return next
   }
 
+  if (rule === 'monthly') {
+    next.setMonth(next.getMonth() + 1)
+    return next
+  }
+
+  const customMatch = rule.match(/^custom:(\d+)$/)
+  if (customMatch) {
+    const intervalDays = parseInt(customMatch[1], 10)
+    if (intervalDays > 0) {
+      next.setDate(next.getDate() + intervalDays)
+      return next
+    }
+  }
+
   return null
 }
 
@@ -90,6 +106,7 @@ export function spawnRecurringTasks(referenceDate?: Date, onlyTaskId?: string): 
   for (const task of recurring) {
     const due = nextDueDate(task.recurrence_rule, ref, task.due_at)
     if (!due) continue
+    if (task.recurrence_end_at && due.getTime() > task.recurrence_end_at) continue
 
     const dateStr = due.toISOString().split('T')[0]
 
@@ -101,13 +118,13 @@ export function spawnRecurringTasks(referenceDate?: Date, onlyTaskId?: string): 
     if (!exists) {
       db.prepare(`
         INSERT INTO tasks (id, title, description, due_at, priority, estimate_minutes, status,
-          created_at, recurrence_rule, parent_task_id, required_tools, allowed_urls,
+          created_at, recurrence_rule, recurrence_end_at, parent_task_id, project_id, required_tools, allowed_urls,
           distraction_apps, tags)
-        VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         randomUUID(), task.title, task.description, due.getTime(),
         task.priority, task.estimate_minutes, Date.now(),
-        task.recurrence_rule, task.id,
+        task.recurrence_rule, task.recurrence_end_at, task.id, task.project_id,
         task.required_tools, task.allowed_urls, task.distraction_apps, task.tags
       )
     }

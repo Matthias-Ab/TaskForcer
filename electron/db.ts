@@ -165,6 +165,8 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE daily_scores ADD COLUMN freeze_used INTEGER DEFAULT 0`,
   // 6 — index on project_id (safe to run after column exists)
   `CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id)`,
+  // 7 — optional end date for recurring tasks (stop spawning occurrences after this)
+  `ALTER TABLE tasks ADD COLUMN recurrence_end_at INTEGER`,
 ]
 
 function runMigrations(db: import('better-sqlite3').Database): void {

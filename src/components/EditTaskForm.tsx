@@ -4,6 +4,7 @@ import { TagInput } from './ui/TagInput'
 import { Button } from './ui/Button'
 import { Task, useAllTags } from '@/hooks/useTasks'
 import { TaskAdvancedFields, advancedFieldsFromTask, advancedFieldsToTaskData } from './TaskAdvancedFields'
+import { RecurrenceFields, recurrenceFromTask, recurrenceToTaskData } from './RecurrenceFields'
 
 interface EditTaskFormProps {
   task: Task
@@ -31,7 +32,7 @@ export function EditTaskForm({ task, onSubmit, onCancel }: EditTaskFormProps) {
   const [dueDate, setDueDate] = useState(tsToDatetimeLocal(task.due_at))
   const [estimate, setEstimate] = useState(String(task.estimate_minutes || 30))
   const [tags, setTags] = useState<string[]>(task.tags || [])
-  const [recurrence, setRecurrence] = useState(task.recurrence_rule || '')
+  const [recurrence, setRecurrence] = useState(recurrenceFromTask(task.recurrence_rule, task.recurrence_end_at))
   const [advanced, setAdvanced] = useState(advancedFieldsFromTask(task))
   const [loading, setLoading] = useState(false)
   const allTags = useAllTags()
@@ -47,7 +48,7 @@ export function EditTaskForm({ task, onSubmit, onCancel }: EditTaskFormProps) {
       due_at: dueDate ? new Date(dueDate).getTime() : null,
       estimate_minutes: parseInt(estimate) || 30,
       tags,
-      recurrence_rule: recurrence || null,
+      ...recurrenceToTaskData(recurrence),
       ...advancedFieldsToTaskData(advanced),
     })
     setLoading(false)
@@ -97,29 +98,14 @@ export function EditTaskForm({ task, onSubmit, onCancel }: EditTaskFormProps) {
           min="1"
         />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <TagInput
-          label="Tags"
-          placeholder="work, health, learning"
-          value={tags}
-          onChange={setTags}
-          suggestions={allTags}
-        />
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium" style={{ color: 'var(--tf-text-muted)' }}>Recurrence</label>
-          <select
-            value={recurrence}
-            onChange={e => setRecurrence(e.target.value)}
-            className="rounded-xl px-3 py-2 text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            style={selectStyle}
-          >
-            <option value="">None</option>
-            <option value="daily">Daily</option>
-            <option value="weekdays">Weekdays (Mon–Fri)</option>
-            <option value="weekly">Weekly</option>
-          </select>
-        </div>
-      </div>
+      <TagInput
+        label="Tags"
+        placeholder="work, health, learning"
+        value={tags}
+        onChange={setTags}
+        suggestions={allTags}
+      />
+      <RecurrenceFields value={recurrence} onChange={setRecurrence} />
       <TaskAdvancedFields value={advanced} onChange={setAdvanced} excludeTaskId={task.id} defaultOpen />
 
       <div className="flex gap-2 justify-end pt-2">
