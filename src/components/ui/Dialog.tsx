@@ -35,7 +35,7 @@ export function Dialog({ open, onClose, title, children, footer, size = 'md' }: 
             aria-modal="true"
             aria-labelledby={titleId}
             tabIndex={-1}
-            className={`relative z-10 rounded-2xl shadow-2xl border ${
+            className={`relative z-10 rounded-2xl shadow-2xl border flex flex-col max-h-[85vh] ${
               size === 'sm' ? 'w-full max-w-sm' :
               size === 'lg' ? 'w-full max-w-2xl' :
               'w-full max-w-md'
@@ -46,7 +46,7 @@ export function Dialog({ open, onClose, title, children, footer, size = 'md' }: 
             animate="visible"
             exit="exit"
           >
-            <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'var(--tf-border)' }}>
+            <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0" style={{ borderColor: 'var(--tf-border)' }}>
               <h2 id={titleId} className="text-base font-semibold" style={{ color: 'var(--tf-text)' }}>{title}</h2>
               <button
                 onClick={onClose}
@@ -59,9 +59,9 @@ export function Dialog({ open, onClose, title, children, footer, size = 'md' }: 
                 <X size={16} />
               </button>
             </div>
-            <div className="px-6 py-4">{children}</div>
+            <div className="px-6 py-4 overflow-y-auto">{children}</div>
             {footer && (
-              <div className="flex justify-end gap-2 px-6 pb-5">{footer}</div>
+              <div className="flex justify-end gap-2 px-6 pb-5 flex-shrink-0">{footer}</div>
             )}
           </motion.div>
         </motion.div>
