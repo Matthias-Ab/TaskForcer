@@ -180,6 +180,122 @@ export function registerScoresIpc(): void {
     return { ok: true, streak_restored: prevStreak }
   })
 
+  // Daily shame-log breakdown by type, for the last N days
+  ipcMain.handle('scores:shame-trend', (_e, days = 30) => {
+    const db = getDb()
+    const since = Date.now() - days * 24 * 60 * 60 * 1000
+    const rows = db.prepare(`
+      SELECT date(created_at/1000,'unixepoch') as date, type, COUNT(*) as count
+      FROM shame_log
+      WHERE created_at >= ?
+      GROUP BY date, type
+      ORDER BY date ASC
+    `).all(since) as { date: string; type: string; count: number }[]
+
+    const byDate = new Map<string, Record<string, number>>()
+    for (const r of rows) {
+      if (!byDate.has(r.date)) byDate.set(r.date, {})
+      byDate.get(r.date)![r.type] = r.count
+    }
+    return Array.from(byDate.entries())
+      .map(([date, counts]) => ({ date, ...counts }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+  })
+
+  // Estimate accuracy: how estimate_minutes compares to actual elapsed_seconds for completed tasks
+  ipcMain.handle('scores:estimate-accuracy', () => {
+    const db = getDb()
+    const rows = db.prepare(`
+      SELECT estimate_minutes, elapsed_seconds FROM tasks
+      WHERE status = 'completed' AND elapsed_seconds > 0 AND estimate_minutes > 0
+    `).all() as { estimate_minutes: number; elapsed_seconds: number }[]
+
+    if (!rows.length) return { sampleSize: 0, avgRatio: null, overestimatedPct: 0, underestimatedPct: 0 }
+
+    const ratios = rows.map(r => (r.elapsed_seconds / 60) / r.estimate_minutes)
+    const avgRatio = ratios.reduce((s, r) => s + r, 0) / ratios.length
+    const overestimated = ratios.filter(r => r < 0.9).length
+    const underestimated = ratios.filter(r => r > 1.1).length
+
+    return {
+      sampleSize: rows.length,
+      avgRatio,
+      overestimatedPct: Math.round((overestimated / rows.length) * 100),
+      underestimatedPct: Math.round((underestimated / rows.length) * 100),
+    }
+  })
+
+  // Average score by day-of-week, over the last N days
+  ipcMain.handle('scores:day-of-week', (_e, days = 90) => {
+    const db = getDb()
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const rows = db.prepare(`
+      SELECT date, score FROM daily_scores WHERE date >= ?
+    `).all(cutoff) as { date: string; score: number }[]
+
+    const buckets: number[][] = Array.from({ length: 7 }, () => [])
+    for (const r of rows) {
+      const day = new Date(r.date + 'T00:00:00').getDay()
+      buckets[day].push(r.score)
+    }
+    const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    return labels.map((label, i) => ({
+      day: label,
+      avgScore: buckets[i].length ? Math.round(buckets[i].reduce((s, v) => s + v, 0) / buckets[i].length) : null,
+      sampleSize: buckets[i].length,
+    }))
+  })
+
+  // Completion rate and time spent per project
+  ipcMain.handle('scores:by-project', () => {
+    const db = getDb()
+    return db.prepare(`
+      SELECT
+        p.id as project_id, p.name, p.color, p.emoji,
+        COUNT(t.id) as total_tasks,
+        SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) as completed_tasks,
+        COALESCE(SUM(t.elapsed_seconds), 0) as total_elapsed_seconds
+      FROM projects p
+      LEFT JOIN tasks t ON t.project_id = p.id
+      GROUP BY p.id
+      ORDER BY p.created_at ASC
+    `).all()
+  })
+
+  // Dates where a streak freeze was used
+  ipcMain.handle('scores:freeze-history', () => {
+    const db = getDb()
+    return db.prepare(`
+      SELECT date, streak_day FROM daily_scores WHERE freeze_used = 1 ORDER BY date DESC
+    `).all()
+  })
+
+  // This week's average score vs the prior week
+  ipcMain.handle('scores:week-over-week', () => {
+    const db = getDb()
+    const now = new Date()
+    const dayOfWeek = now.getDay()
+    const thisWeekStart = new Date(now)
+    thisWeekStart.setDate(now.getDate() - dayOfWeek)
+    thisWeekStart.setHours(0, 0, 0, 0)
+    const lastWeekStart = new Date(thisWeekStart)
+    lastWeekStart.setDate(thisWeekStart.getDate() - 7)
+
+    const fmt = (d: Date) => d.toISOString().split('T')[0]
+    const avgFor = (from: string, to: string) => {
+      const row = db.prepare('SELECT AVG(score) as avg FROM daily_scores WHERE date >= ? AND date < ?').get(from, to) as { avg: number | null }
+      return row.avg
+    }
+    const thisWeekAvg = avgFor(fmt(thisWeekStart), fmt(new Date(thisWeekStart.getTime() + 7 * 86400000)))
+    const lastWeekAvg = avgFor(fmt(lastWeekStart), fmt(thisWeekStart))
+
+    return {
+      thisWeekAvg: thisWeekAvg !== null ? Math.round(thisWeekAvg) : null,
+      lastWeekAvg: lastWeekAvg !== null ? Math.round(lastWeekAvg) : null,
+      deltaPct: (thisWeekAvg !== null && lastWeekAvg) ? Math.round(((thisWeekAvg - lastWeekAvg) / lastWeekAvg) * 100) : null,
+    }
+  })
+
   // Focus DNA: hourly completion heatmap
   ipcMain.handle('scores:focus-dna', () => {
     const db = getDb()
