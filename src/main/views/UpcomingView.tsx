@@ -4,6 +4,7 @@ import { ipc } from '@/lib/ipc'
 import { Task } from '@/hooks/useTasks'
 import { useTaskContext } from '@/contexts/TaskContext'
 import { useTemplates } from '@/hooks/useTemplates'
+import { useHabitStreaks } from '@/hooks/useHabitStreaks'
 import { pageTransition } from '@/lib/animations'
 import { TaskSkeletonList } from '@/components/ui/Skeleton'
 import { TaskCard } from '@/components/TaskCard'
@@ -18,6 +19,7 @@ export function UpcomingView() {
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [previewTask, setPreviewTask] = useState<Task | null>(null)
   const { completeTask, startTask, snoozeTask, deleteTask, updateTask } = useTaskContext()
+  const { streaks } = useHabitStreaks(tasks)
   const { saveTemplate: _saveTemplate } = useTemplates()
   const saveTemplate = useCallback((task: Task, name: string) => _saveTemplate(name, task), [_saveTemplate])
 
@@ -111,7 +113,7 @@ export function UpcomingView() {
                   </span>
                 </div>
                 <div className="space-y-1.5">
-                  {overdue.map(task => <TaskCard key={task.id} task={task} {...rowProps} />)}
+                  {overdue.map(task => <TaskCard key={task.id} task={task} streak={streaks.get(task.id)} {...rowProps} />)}
                 </div>
               </div>
             )}
@@ -135,7 +137,7 @@ export function UpcomingView() {
                   </span>
                 </div>
                 <div className="space-y-1.5">
-                  {group.tasks.map(task => <TaskCard key={task.id} task={task} {...rowProps} />)}
+                  {group.tasks.map(task => <TaskCard key={task.id} task={task} streak={streaks.get(task.id)} {...rowProps} />)}
                 </div>
               </div>
             ))}

@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { ipc } from '@/lib/ipc'
 import { Task } from '@/hooks/useTasks'
+import { useHabitStreaks } from '@/hooks/useHabitStreaks'
 import { pageTransition } from '@/lib/animations'
-import { CheckSquare2, Clock, Flame, TrendingUp, Star, AlertTriangle } from 'lucide-react'
+import { CheckSquare2, Clock, Flame, TrendingUp, Star, AlertTriangle, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface DayStats {
@@ -16,6 +17,7 @@ interface DayStats {
 export function WeeklyReviewView() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
+  const { chains: habitChains } = useHabitStreaks()
 
   useEffect(() => {
     const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
@@ -105,6 +107,34 @@ export function WeeklyReviewView() {
                 </p>
               )}
             </div>
+
+            {/* Habit streaks */}
+            {habitChains.length > 0 && (
+              <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--tf-border)', background: 'var(--tf-card-bg)' }}>
+                <h2 className="text-sm font-semibold mb-3" style={{ color: 'var(--tf-text)' }}>
+                  <Flame size={13} className="inline text-orange-400 mr-1" />
+                  Habit Streaks
+                </h2>
+                <div className="space-y-1.5">
+                  {habitChains.map(chain => (
+                    <div key={chain.rootId} className="flex items-center gap-3 px-3 py-2 rounded-xl" style={{ background: 'var(--tf-bg-tertiary)' }}>
+                      <span className="text-sm flex-1 truncate" style={{ color: 'var(--tf-text)' }}>{chain.title}</span>
+                      {chain.nagEnabled && <Bell size={10} className="text-amber-400 flex-shrink-0" />}
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-md text-indigo-400 flex-shrink-0" style={{ background: 'var(--tf-bg-secondary, var(--tf-card-bg))' }}>
+                        {chain.recurrenceRule}
+                      </span>
+                      <span className="text-[10px] font-mono flex-shrink-0" style={{ color: 'var(--tf-text-faint)' }}>
+                        {chain.completedCount}/{chain.totalCount}
+                      </span>
+                      <span className={cn('flex items-center gap-1 text-xs font-mono font-bold tabular-nums flex-shrink-0', chain.streak > 0 ? 'text-orange-400' : '')} style={chain.streak > 0 ? {} : { color: 'var(--tf-text-faint)' }}>
+                        <Flame size={11} className={chain.streak > 0 ? 'text-orange-400' : ''} style={chain.streak > 0 ? {} : { color: 'var(--tf-text-faint)' }} />
+                        {chain.streak}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Top tags */}
             {sortedTags.length > 0 && (

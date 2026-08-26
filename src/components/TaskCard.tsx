@@ -1,6 +1,6 @@
 import { useState, useRef, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Play, Trash2, AlarmClock, Pencil, ChevronDown, Bookmark, ListTodo, Lock, Bell } from 'lucide-react'
+import { Play, Trash2, AlarmClock, Pencil, ChevronDown, Bookmark, ListTodo, Lock, Bell, Flame } from 'lucide-react'
 import { Task } from '@/hooks/useTasks'
 import { cn, formatDate, isOverdue, priorityDotColor, SNOOZE_OPTIONS } from '@/lib/utils'
 import { spring, checkmark } from '@/lib/animations'
@@ -12,6 +12,7 @@ interface TaskCardProps {
   selectionMode?: boolean
   subtaskCount?: number
   subtaskDone?: number
+  streak?: number
   onSelect?: (id: string) => void
   onComplete: (id: string) => void
   onStart: (id: string) => void
@@ -23,7 +24,7 @@ interface TaskCardProps {
 }
 
 export const TaskCard = memo(function TaskCard({
-  task, selected, selectionMode, subtaskCount, subtaskDone,
+  task, selected, selectionMode, subtaskCount, subtaskDone, streak,
   onSelect, onComplete, onStart, onSnooze, onDelete, onEdit, onPreview, onSaveTemplate,
 }: TaskCardProps) {
   const [completing, setCompleting] = useState(false)
@@ -140,6 +141,12 @@ export const TaskCard = memo(function TaskCard({
           {task.nag_enabled && (
             <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-400" title="Nudges every 30 min until done">
               <Bell size={9} />
+            </span>
+          )}
+          {!!streak && streak > 0 && (
+            <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-orange-500/15 text-orange-400" title={`${streak}-day streak`}>
+              <Flame size={9} />
+              {streak}
             </span>
           )}
           {task.blocked_by?.length > 0 && (

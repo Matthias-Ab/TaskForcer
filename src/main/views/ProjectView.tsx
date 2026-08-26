@@ -15,6 +15,7 @@ import { Task } from '@/hooks/useTasks'
 import { useProjects } from '@/hooks/useProjects'
 import { useTaskContext } from '@/contexts/TaskContext'
 import { useTemplates } from '@/hooks/useTemplates'
+import { useHabitStreaks } from '@/hooks/useHabitStreaks'
 import { pageTransition } from '@/lib/animations'
 import { CreateTaskForm } from '@/components/CreateTaskForm'
 import { TaskCard } from '@/components/TaskCard'
@@ -32,6 +33,7 @@ export function ProjectView() {
   const { saveTemplate: _saveTemplate } = useTemplates()
   const saveTemplate = useCallback((task: Task, name: string) => _saveTemplate(name, task), [_saveTemplate])
   const [tasks, setTasks] = useState<Task[]>([])
+  const { streaks } = useHabitStreaks(tasks)
   const [loading, setLoading] = useState(true)
   const [editingProject, setEditingProject] = useState(false)
   const [projectName, setProjectName] = useState('')
@@ -139,7 +141,7 @@ export function ProjectView() {
               <SortableContext items={active.map(t => t.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-1.5">
                   {active.map(task => (
-                    <SortableTaskCard key={task.id} task={task} {...cardProps} />
+                    <SortableTaskCard key={task.id} task={task} streak={streaks.get(task.id)} {...cardProps} />
                   ))}
                 </div>
               </SortableContext>
