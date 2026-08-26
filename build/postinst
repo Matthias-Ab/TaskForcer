@@ -1,6 +1,16 @@
 #!/bin/bash
 set -e
 
+# Kill any instance still running from before this upgrade. The app's single-instance lock only
+# guards instances that are ALL running post-lock-era code -- an old process left alive across an
+# in-place upgrade never contended for that lock in the first place, so a fresh launch right after
+# upgrading would start as a second, fully independent process writing to the same SQLite file.
+if pgrep -f '^/opt/TaskForcer/taskforcer($| )' > /dev/null 2>&1; then
+  pkill -TERM -f '^/opt/TaskForcer/taskforcer($| )' || true
+  sleep 1
+  pkill -KILL -f '^/opt/TaskForcer/taskforcer($| )' || true
+fi
+
 # Fix Chrome sandbox SUID bit — required for Electron on Linux without --no-sandbox
 SANDBOX=/opt/TaskForcer/chrome-sandbox
 if [ -f "$SANDBOX" ]; then
