@@ -11,6 +11,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { useTaskContext } from '@/contexts/TaskContext'
 import { useTemplates } from '@/hooks/useTemplates'
+import { useHabitStreaks } from '@/hooks/useHabitStreaks'
 import { TaskCard } from '@/components/TaskCard'
 import { QuickCapture } from '@/components/QuickCapture'
 import { CreateTaskForm } from '@/components/CreateTaskForm'
@@ -23,6 +24,12 @@ import { Task } from '@/hooks/useTasks'
 import { ipc } from '@/lib/ipc'
 import { pageTransition } from '@/lib/animations'
 import { CheckSquare2, AlertTriangle, Circle, CheckCheck, Trash2, ChevronDown, Siren, ChevronRight } from 'lucide-react'
+
+// A recurring occurrence has parent_task_id set (pointing at its chain's root) just like a real
+// subtask does, but it also always carries its own recurrence_rule -- a real subtask never does.
+function isTopLevel(t: Task): boolean {
+  return !t.parent_task_id || !!t.recurrence_rule
+}
 
 const PRIORITY_OPTIONS: { label: string; value: Task['priority'] }[] = [
   { label: 'Critical', value: 'critical' },
@@ -37,6 +44,7 @@ export function TodayView() {
     updateTask, deleteTasks, completeTasks, updateTasksPriority, reorderTasks,
   } = useTaskContext()
 
+  const { streaks } = useHabitStreaks(tasks)
   const { saveTemplate: _saveTemplate } = useTemplates()
   const saveTemplate = useCallback((task: Task, name: string) => _saveTemplate(name, task), [_saveTemplate])
 
@@ -50,7 +58,7 @@ export function TodayView() {
 
   // Load subtask counts for all top-level tasks
   const loadSubtaskCounts = useCallback(async (taskList: Task[]) => {
-    const parentIds = taskList.filter(t => !t.parent_task_id).map(t => t.id)
+    const parentIds = taskList.filter(isTopLevel).map(t => t.id)
     const results = await Promise.all(
       parentIds.map(async id => {
         const subs = await ipc.invoke<Task[]>('tasks:subtasks', id)
@@ -109,8 +117,10 @@ export function TodayView() {
     return () => window.removeEventListener('keydown', handler)
   }, [selectionMode, selectedIds])
 
-  // Only show top-level tasks in the main list (subtasks appear in preview)
-  const topLevel = tasks.filter(t => !t.parent_task_id)
+  // Only show top-level tasks in the main list (subtasks appear in preview) -- a recurring
+  // occurrence also has parent_task_id set (it points at the root of its chain), but unlike a
+  // real subtask it always carries its own recurrence_rule too, which is what distinguishes it.
+  const topLevel = tasks.filter(isTopLevel)
   const activeTasks = topLevel.filter(t => t.status !== 'completed')
   const overdueTasks = activeTasks.filter(t => t.due_at && t.due_at < Date.now())
   const critical = activeTasks.filter(t => t.priority === 'critical')
@@ -121,6 +131,7 @@ export function TodayView() {
   const sharedGroupProps = {
     selectedIds, selectionMode,
     subtaskCounts,
+    streaks,
     onSelect: toggleSelect,
     onComplete: completeTask,
     onStart: startTask,
@@ -322,6 +333,7 @@ interface TaskGroupProps {
   selectedIds: Set<string>
   selectionMode: boolean
   subtaskCounts: Record<string, { total: number; done: number }>
+  streaks: Map<string, number>
   onSelect: (id: string) => void
   onComplete: (id: string) => void
   onStart: (id: string) => void
@@ -335,7 +347,7 @@ interface TaskGroupProps {
 }
 
 function TaskGroup({
-  label, icon, tasks, selectedIds, selectionMode, subtaskCounts,
+  label, icon, tasks, selectedIds, selectionMode, subtaskCounts, streaks,
   onSelect, onComplete, onStart, onSnooze, onDelete, onEdit, onPreview, onSaveTemplate, onReorder, collapsed = false,
 }: TaskGroupProps) {
   const [open, setOpen] = useState(!collapsed)
@@ -389,6 +401,7 @@ function TaskGroup({
                       selectionMode={selectionMode}
                       subtaskCount={subtaskCounts[task.id]?.total}
                       subtaskDone={subtaskCounts[task.id]?.done}
+                      streak={streaks.get(task.id)}
                       onSelect={onSelect}
                       onComplete={onComplete}
                       onStart={onStart}

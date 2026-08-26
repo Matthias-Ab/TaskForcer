@@ -167,8 +167,10 @@ export function registerTaskIpc(): void {
 
   ipcMain.handle('tasks:subtasks', (_e, parentId: string) => {
     const db = getDb()
+    // recurrence_rule IS NULL excludes a recurring task's spawned occurrences -- they reuse
+    // parent_task_id to point at their chain's root, but they aren't subtasks of it.
     const rows = db.prepare(
-      'SELECT * FROM tasks WHERE parent_task_id = ? ORDER BY created_at ASC'
+      'SELECT * FROM tasks WHERE parent_task_id = ? AND recurrence_rule IS NULL ORDER BY created_at ASC'
     ).all(parentId) as Record<string, unknown>[]
     return rows.map(parseTask)
   })
@@ -177,7 +179,7 @@ export function registerTaskIpc(): void {
     const db = getDb()
     const completedAt = Date.now()
     db.prepare(
-      `UPDATE tasks SET status = 'completed', completed_at = ? WHERE parent_task_id = ? AND status != 'completed'`
+      `UPDATE tasks SET status = 'completed', completed_at = ? WHERE parent_task_id = ? AND recurrence_rule IS NULL AND status != 'completed'`
     ).run(completedAt, parentId)
     return { ok: true }
   })
