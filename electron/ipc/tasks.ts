@@ -15,6 +15,7 @@ export interface Task {
   completed_at: number | null
   recurrence_rule: string | null
   recurrence_end_at: number | null
+  nag_enabled: boolean
   parent_task_id: string | null
   project_id: string | null
   sort_order: number
@@ -28,7 +29,7 @@ export interface Task {
 
 const UPDATABLE_FIELDS = new Set([
   'title', 'description', 'due_at', 'priority', 'estimate_minutes', 'status',
-  'completed_at', 'recurrence_rule', 'recurrence_end_at', 'parent_task_id', 'project_id', 'sort_order',
+  'completed_at', 'recurrence_rule', 'recurrence_end_at', 'nag_enabled', 'parent_task_id', 'project_id', 'sort_order',
   'blocked_by', 'elapsed_seconds', 'required_tools', 'allowed_urls', 'distraction_apps', 'tags',
 ])
 
@@ -44,6 +45,7 @@ export function parseTask(row: Record<string, unknown>): Task {
     sort_order: (row.sort_order as number) || 0,
     elapsed_seconds: (row.elapsed_seconds as number) || 0,
     recurrence_end_at: (row.recurrence_end_at as number) || null,
+    nag_enabled: !!(row.nag_enabled as number),
   } as Task
 }
 
@@ -106,6 +108,7 @@ export function registerTaskIpc(): void {
       completed_at: data.completed_at ?? null,
       recurrence_rule: data.recurrence_rule ?? null,
       recurrence_end_at: data.recurrence_end_at ?? null,
+      nag_enabled: data.nag_enabled ?? false,
       parent_task_id: data.parent_task_id ?? null,
       project_id: data.project_id ?? null,
       sort_order: data.sort_order ?? 0,
@@ -120,13 +123,13 @@ export function registerTaskIpc(): void {
     }
     db.prepare(`
       INSERT INTO tasks (id, title, description, due_at, priority, estimate_minutes, status,
-        created_at, completed_at, recurrence_rule, recurrence_end_at, parent_task_id, project_id, sort_order,
+        created_at, completed_at, recurrence_rule, recurrence_end_at, nag_enabled, parent_task_id, project_id, sort_order,
         blocked_by, elapsed_seconds, required_tools, allowed_urls, distraction_apps, tags)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       task.id, task.title, task.description, task.due_at, task.priority,
       task.estimate_minutes, task.status, task.created_at, task.completed_at,
-      task.recurrence_rule, task.recurrence_end_at, task.parent_task_id, task.project_id, task.sort_order,
+      task.recurrence_rule, task.recurrence_end_at, task.nag_enabled ? 1 : 0, task.parent_task_id, task.project_id, task.sort_order,
       JSON.stringify(task.blocked_by), task.elapsed_seconds,
       JSON.stringify(task.required_tools), JSON.stringify(task.allowed_urls),
       JSON.stringify(task.distraction_apps), JSON.stringify(task.tags)
@@ -143,7 +146,7 @@ export function registerTaskIpc(): void {
     for (const [key, val] of Object.entries(data)) {
       if (!UPDATABLE_FIELDS.has(key)) continue
       updates.push(`${key} = ?`)
-      params.push(jsonFields.has(key) ? JSON.stringify(val) : val)
+      params.push(jsonFields.has(key) ? JSON.stringify(val) : key === 'nag_enabled' ? (val ? 1 : 0) : val)
     }
     if (!updates.length) return null
 

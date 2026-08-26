@@ -24,6 +24,11 @@ export function initScheduler(): void {
     checkUpcomingNotifications()
     checkOverdueNotifications()
   })
+
+  // Every 10 minutes: repeat nudges for tasks flagged "remind aggressively" (habits/courses done outside the app)
+  schedule.scheduleJob('*/10 * * * *', () => {
+    checkNagNotifications()
+  })
 }
 
 interface RecurringTask {
@@ -40,6 +45,7 @@ interface RecurringTask {
   allowed_urls: string
   distraction_apps: string
   due_at: number | null
+  nag_enabled: number
 }
 
 function nextDueDate(rule: string, fromDate: Date, originalDueAt: number | null): Date | null {
@@ -148,13 +154,13 @@ export function spawnRecurringTasks(referenceDate?: Date, onlyTaskId?: string): 
     if (!exists) {
       db.prepare(`
         INSERT INTO tasks (id, title, description, due_at, priority, estimate_minutes, status,
-          created_at, recurrence_rule, recurrence_end_at, parent_task_id, project_id, required_tools, allowed_urls,
+          created_at, recurrence_rule, recurrence_end_at, nag_enabled, parent_task_id, project_id, required_tools, allowed_urls,
           distraction_apps, tags)
-        VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         randomUUID(), task.title, task.description, due.getTime(),
         task.priority, task.estimate_minutes, Date.now(),
-        task.recurrence_rule, task.recurrence_end_at, task.id, task.project_id,
+        task.recurrence_rule, task.recurrence_end_at, task.nag_enabled, task.id, task.project_id,
         task.required_tools, task.allowed_urls, task.distraction_apps, task.tags
       )
     }
@@ -225,5 +231,40 @@ function checkOverdueNotifications(): void {
     if (Notification.isSupported()) {
       new Notification({ title: '⚠️ Task overdue', body: task.title }).show()
     }
+  }
+}
+
+// Tasks marked "remind aggressively" get nudged repeatedly (like a Duolingo streak reminder) instead
+// of the usual one-shot due/overdue notification -- for habits done outside the app (courses, workouts)
+// where a single ping is easy to dismiss and forget.
+const NAG_INTERVAL_MS = 30 * 60 * 1000
+const NAG_WINDOW_START_HOUR = 7
+const NAG_WINDOW_END_HOUR = 22
+const lastNagAt = new Map<string, number>()
+
+function checkNagNotifications(): void {
+  const now = new Date()
+  const hour = now.getHours()
+  if (hour < NAG_WINDOW_START_HOUR || hour >= NAG_WINDOW_END_HOUR) return
+  if (!Notification.isSupported()) return
+
+  const db = getDb()
+  const due = db.prepare(`
+    SELECT id, title FROM tasks
+    WHERE nag_enabled = 1 AND status NOT IN ('completed', 'cancelled')
+      AND due_at IS NOT NULL AND due_at <= ?
+      AND date(due_at/1000, 'unixepoch', 'localtime') = date('now', 'localtime')
+  `).all(now.getTime()) as { id: string; title: string }[]
+
+  const dueIds = new Set(due.map(t => t.id))
+  for (const id of lastNagAt.keys()) {
+    if (!dueIds.has(id)) lastNagAt.delete(id)
+  }
+
+  for (const task of due) {
+    const last = lastNagAt.get(task.id) ?? 0
+    if (now.getTime() - last < NAG_INTERVAL_MS) continue
+    lastNagAt.set(task.id, now.getTime())
+    new Notification({ title: '📚 Still waiting on this', body: task.title }).show()
   }
 }

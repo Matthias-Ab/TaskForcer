@@ -167,6 +167,8 @@ const MIGRATIONS: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id)`,
   // 7 — optional end date for recurring tasks (stop spawning occurrences after this)
   `ALTER TABLE tasks ADD COLUMN recurrence_end_at INTEGER`,
+  // 8 — repeat notifications throughout the day for a task until it's completed (habit/course nudges)
+  `ALTER TABLE tasks ADD COLUMN nag_enabled INTEGER DEFAULT 0`,
 ]
 
 function runMigrations(db: import('better-sqlite3').Database): void {

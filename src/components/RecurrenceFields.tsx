@@ -12,6 +12,8 @@ export interface RecurrenceValue {
   endDate: string
   /** Time of day (HH:MM) for the reminder -- a recurring task has no single fixed date */
   time: string
+  /** Nudge repeatedly all day until done, instead of a single due/overdue notification */
+  nag: boolean
 }
 
 /** First occurrence on/after now (tomorrow if the time already passed today), respecting the rule. */
@@ -35,7 +37,7 @@ function computeInitialDueDate(rule: string, timeStr: string): number {
   return candidate.getTime()
 }
 
-export function recurrenceFromTask(recurrenceRule: string | null, recurrenceEndAt: number | null, dueAt?: number | null): RecurrenceValue {
+export function recurrenceFromTask(recurrenceRule: string | null, recurrenceEndAt: number | null, dueAt?: number | null, nagEnabled?: boolean): RecurrenceValue {
   const customMatch = recurrenceRule?.match(/^custom:(\d+)$/)
   const pad = (n: number) => String(n).padStart(2, '0')
   const time = dueAt ? `${pad(new Date(dueAt).getHours())}:${pad(new Date(dueAt).getMinutes())}` : '09:00'
@@ -44,6 +46,7 @@ export function recurrenceFromTask(recurrenceRule: string | null, recurrenceEndA
     customDays: customMatch ? customMatch[1] : '7',
     endDate: recurrenceEndAt ? new Date(recurrenceEndAt).toISOString().split('T')[0] : '',
     time,
+    nag: nagEnabled ?? false,
   }
 }
 
@@ -53,7 +56,7 @@ export function recurrenceFromTask(recurrenceRule: string | null, recurrenceEndA
  * occurrence from right now" -- otherwise saving unrelated edits would silently reschedule it.
  * Omit it when creating a new recurring task, where "next applicable slot from now" is correct.
  */
-export function recurrenceToTaskData(value: RecurrenceValue, existingDueAt?: number | null): { recurrence_rule: string | null; recurrence_end_at: number | null; due_at?: number } {
+export function recurrenceToTaskData(value: RecurrenceValue, existingDueAt?: number | null): { recurrence_rule: string | null; recurrence_end_at: number | null; nag_enabled: boolean; due_at?: number } {
   const rule = value.rule === 'custom' ? `custom:${parseInt(value.customDays, 10) || 7}` : (value.rule || null)
   let due_at: number | undefined
   if (rule) {
@@ -69,6 +72,7 @@ export function recurrenceToTaskData(value: RecurrenceValue, existingDueAt?: num
   return {
     recurrence_rule: rule,
     recurrence_end_at: rule && value.endDate ? new Date(value.endDate).setHours(23, 59, 59, 999) : null,
+    nag_enabled: !!rule && value.nag,
     ...(due_at !== undefined ? { due_at } : {}),
   }
 }
@@ -125,6 +129,18 @@ export function RecurrenceFields({ value, onChange }: RecurrenceFieldsProps) {
           value={value.endDate}
           onChange={e => onChange({ ...value, endDate: e.target.value })}
         />
+      )}
+
+      {value.rule && (
+        <label className="col-span-2 flex items-center gap-2 text-xs cursor-pointer" style={{ color: 'var(--tf-text-muted)' }}>
+          <input
+            type="checkbox"
+            checked={value.nag}
+            onChange={e => onChange({ ...value, nag: e.target.checked })}
+            className="rounded"
+          />
+          Remind me aggressively — repeat every 30 min until done (for habits/courses done outside the app)
+        </label>
       )}
     </div>
   )

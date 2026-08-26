@@ -13,6 +13,7 @@ export interface Task {
   completed_at: number | null
   recurrence_rule: string | null
   recurrence_end_at: number | null
+  nag_enabled: boolean
   parent_task_id: string | null
   project_id: string | null
   sort_order: number

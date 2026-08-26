@@ -1,6 +1,6 @@
 import { useState, useRef, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Play, Trash2, AlarmClock, Pencil, ChevronDown, Bookmark, ListTodo, Lock } from 'lucide-react'
+import { Play, Trash2, AlarmClock, Pencil, ChevronDown, Bookmark, ListTodo, Lock, Bell } from 'lucide-react'
 import { Task } from '@/hooks/useTasks'
 import { cn, formatDate, isOverdue, priorityDotColor, SNOOZE_OPTIONS } from '@/lib/utils'
 import { spring, checkmark } from '@/lib/animations'
@@ -135,6 +135,11 @@ export const TaskCard = memo(function TaskCard({
           {task.recurrence_rule && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-indigo-500/15 text-indigo-400">
               {task.recurrence_rule}
+            </span>
+          )}
+          {task.nag_enabled && (
+            <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-400" title="Nudges every 30 min until done">
+              <Bell size={9} />
             </span>
           )}
           {task.blocked_by?.length > 0 && (

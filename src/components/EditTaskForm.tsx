@@ -32,7 +32,7 @@ export function EditTaskForm({ task, onSubmit, onCancel }: EditTaskFormProps) {
   const [dueDate, setDueDate] = useState(tsToDatetimeLocal(task.due_at))
   const [estimate, setEstimate] = useState(String(task.estimate_minutes || 30))
   const [tags, setTags] = useState<string[]>(task.tags || [])
-  const [recurrence, setRecurrence] = useState(recurrenceFromTask(task.recurrence_rule, task.recurrence_end_at, task.due_at))
+  const [recurrence, setRecurrence] = useState(recurrenceFromTask(task.recurrence_rule, task.recurrence_end_at, task.due_at, task.nag_enabled))
   const [advanced, setAdvanced] = useState(advancedFieldsFromTask(task))
   const [loading, setLoading] = useState(false)
   const allTags = useAllTags()
@@ -51,6 +51,7 @@ export function EditTaskForm({ task, onSubmit, onCancel }: EditTaskFormProps) {
       tags,
       recurrence_rule: recurrenceData.recurrence_rule,
       recurrence_end_at: recurrenceData.recurrence_end_at,
+      nag_enabled: recurrenceData.nag_enabled,
       ...advancedFieldsToTaskData(advanced),
     })
     setLoading(false)

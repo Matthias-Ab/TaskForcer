@@ -48,6 +48,7 @@ export function CreateTaskForm({ onSubmit, onCancel, compact = false }: CreateTa
       tags,
       recurrence_rule: recurrenceData.recurrence_rule,
       recurrence_end_at: recurrenceData.recurrence_end_at,
+      nag_enabled: recurrenceData.nag_enabled,
       ...(compact ? {} : advancedFieldsToTaskData(advanced)),
     })
     setTitle('')
