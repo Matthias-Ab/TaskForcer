@@ -1,30 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Zap } from 'lucide-react'
+import { Zap, CalendarClock, Repeat } from 'lucide-react'
 import { Task } from '@/hooks/useTasks'
-
-interface ParsedCapture {
-  title: string
-  tags: string[]
-  priority: Task['priority']
-}
-
-function parseCapture(raw: string): ParsedCapture {
-  let title = raw
-  const tags: string[] = []
-  let priority: Task['priority'] = 'medium'
-
-  // Extract #tags
-  title = title.replace(/#(\w+)/g, (_, tag) => { tags.push(tag); return '' })
-
-  // Extract !priority
-  if (/!critical/i.test(title)) { priority = 'critical'; title = title.replace(/!critical/gi, '') }
-  else if (/!high/i.test(title)) { priority = 'critical'; title = title.replace(/!high/gi, '') }
-  else if (/!medium/i.test(title)) { priority = 'medium'; title = title.replace(/!medium/gi, '') }
-  else if (/!low/i.test(title)) { priority = 'low'; title = title.replace(/!low/gi, '') }
-
-  return { title: title.replace(/\s+/g, ' ').trim(), tags, priority }
-}
+import { parseTaskText, ParsedTaskText } from '@/lib/parseTaskText'
 
 interface QuickCaptureProps {
   onSubmit: (data: Partial<Task>) => Promise<unknown>
@@ -33,7 +11,7 @@ interface QuickCaptureProps {
 
 export function QuickCapture({ onSubmit, autoFocus }: QuickCaptureProps) {
   const [value, setValue] = useState('')
-  const [preview, setPreview] = useState<ParsedCapture | null>(null)
+  const [preview, setPreview] = useState<ParsedTaskText | null>(null)
   const [loading, setLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -44,17 +22,23 @@ export function QuickCapture({ onSubmit, autoFocus }: QuickCaptureProps) {
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const v = e.target.value
     setValue(v)
-    if (v.trim()) setPreview(parseCapture(v))
+    if (v.trim()) setPreview(parseTaskText(v))
     else setPreview(null)
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!value.trim() || loading) return
-    const parsed = parseCapture(value)
+    const parsed = parseTaskText(value)
     if (!parsed.title) return
     setLoading(true)
-    await onSubmit({ title: parsed.title, tags: parsed.tags, priority: parsed.priority })
+    await onSubmit({
+      title: parsed.title,
+      tags: parsed.tags,
+      priority: parsed.priority,
+      due_at: parsed.due_at,
+      recurrence_rule: parsed.recurrence_rule,
+    })
     setValue('')
     setPreview(null)
     setLoading(false)
@@ -105,7 +89,19 @@ export function QuickCapture({ onSubmit, autoFocus }: QuickCaptureProps) {
                 #{t}
               </span>
             ))}
-            <span className="text-[10px]" style={{ color: 'var(--tf-text-faint)' }}>press ↵</span>
+            {preview.due_at && (
+              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md text-emerald-400 flex-shrink-0" style={{ background: 'var(--tf-bg-tertiary)' }}>
+                <CalendarClock size={10} />
+                {new Date(preview.due_at).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}
+              </span>
+            )}
+            {preview.recurrence_rule && (
+              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md text-amber-400 flex-shrink-0" style={{ background: 'var(--tf-bg-tertiary)' }}>
+                <Repeat size={10} />
+                {preview.recurrence_rule}
+              </span>
+            )}
+            <span className="text-[10px] flex-shrink-0" style={{ color: 'var(--tf-text-faint)' }}>press ↵</span>
           </motion.div>
         )}
       </AnimatePresence>
