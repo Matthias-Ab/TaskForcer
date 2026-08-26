@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// Generates build/icon.png (512x512) and build/icon.ico (256x256 embedded)
-// Pure-JS PNG via raw DEFLATE — no extra deps required.
+// Generates build/icon.png (512x512) and build/icon.ico (256x256 embedded) --
+// a rounded-square indigo/violet gradient with a bold checkmark, drawn as an
+// anti-aliased signed-distance field. Pure-JS PNG via raw DEFLATE -- no
+// image-library dependency needed.
 const fs = require('fs')
 const path = require('path')
 const zlib = require('zlib')
@@ -33,34 +35,89 @@ function chunk(type, data) {
   return Buffer.concat([len, body, checksum])
 }
 
-function makePng(size, r, g, b) {
-  // IHDR
-  const ihdr = Buffer.alloc(13)
-  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4)
-  ihdr[8] = 8; ihdr[9] = 2 // bit depth 8, RGB
+// ── Signed-distance-field drawing helpers ─────────────────────────────────
 
-  // Raw pixel rows: filter byte 0 + RGB * size
-  const rowSize = 1 + size * 3
-  const raw = Buffer.alloc(size * rowSize)
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
+function mix(a, b, t) { return a + (b - a) * t }
+function smoothstep(edge0, edge1, x) {
+  const t = clamp((x - edge0) / (edge1 - edge0), 0, 1)
+  return t * t * (3 - 2 * t)
+}
+
+// Distance from (px, py) to a rounded square of half-size h centered at origin
+function sdRoundedBox(px, py, h, radius) {
+  const qx = Math.abs(px) - h + radius
+  const qy = Math.abs(py) - h + radius
+  return Math.min(Math.max(qx, qy), 0) + Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) - radius
+}
+
+// Distance from (px, py) to the segment (ax,ay)-(bx,by)
+function sdSegment(px, py, ax, ay, bx, by) {
+  const abx = bx - ax, aby = by - ay
+  const apx = px - ax, apy = py - ay
+  const t = clamp((apx * abx + apy * aby) / (abx * abx + aby * aby), 0, 1)
+  const cx = ax + abx * t, cy = ay + aby * t
+  return Math.hypot(px - cx, py - cy)
+}
+
+function makeIcon(size) {
+  const raw = Buffer.alloc(size * (1 + size * 4))
+  const rowSize = 1 + size * 4
+
+  const half = size / 2
+  const radius = size * 0.22
+  const checkThickness = size * 0.085
+  // Checkmark vertices, centered on the icon (0,0) origin
+  const p0 = { x: -size * 0.20, y: size * 0.02 }
+  const p1 = { x: -size * 0.045, y: size * 0.16 }
+  const p2 = { x: size * 0.24, y: -size * 0.16 }
+
+  // Gradient endpoints (indigo-500 -> violet-600), sampled along the diagonal
+  const c1 = [99, 102, 241]   // #6366f1
+  const c2 = [124, 58, 237]   // #7c3aed
+
+  const AA = 1.2 // anti-alias band width in pixels
+
   for (let y = 0; y < size; y++) {
-    const off = y * rowSize
-    raw[off] = 0 // filter none
+    const py = y - half + 0.5
+    const rowOff = y * rowSize
+    raw[rowOff] = 0 // filter: none
     for (let x = 0; x < size; x++) {
-      // Draw a rounded-ish indigo square with a simple "T" letter hint
-      const px = off + 1 + x * 3
-      // background
-      let pr = r, pg = g, pb = b
-      // slightly lighter center logo area
-      const cx = Math.abs(x - size / 2), cy = Math.abs(y - size / 2)
-      if (cx < size * 0.28 && cy < size * 0.28) {
-        pr = Math.min(255, r + 40); pg = Math.min(255, g + 40); pb = Math.min(255, b + 40)
-      }
-      raw[px] = pr; raw[px + 1] = pg; raw[px + 2] = pb
+      const px = x - half + 0.5
+      const off = rowOff + 1 + x * 4
+
+      const boxDist = sdRoundedBox(px, py, half, radius)
+      const boxAlpha = clamp(0.5 - boxDist / AA, 0, 1)
+
+      // Diagonal gradient (top-left lighter -> bottom-right deeper)
+      const t = clamp((px + py) / size + 0.5, 0, 1)
+      let r = mix(c1[0], c2[0], t)
+      let g = mix(c1[1], c2[1], t)
+      let b = mix(c1[2], c2[2], t)
+
+      // Checkmark: min distance to the two segments, minus half-thickness
+      const d0 = sdSegment(px, py, p0.x, p0.y, p1.x, p1.y)
+      const d1 = sdSegment(px, py, p1.x, p1.y, p2.x, p2.y)
+      const checkDist = Math.min(d0, d1) - checkThickness / 2
+      const checkAlpha = clamp(0.5 - checkDist / AA, 0, 1)
+
+      // Composite white checkmark over the gradient background
+      r = mix(r, 255, checkAlpha)
+      g = mix(g, 255, checkAlpha)
+      b = mix(b, 255, checkAlpha)
+
+      raw[off] = Math.round(r)
+      raw[off + 1] = Math.round(g)
+      raw[off + 2] = Math.round(b)
+      raw[off + 3] = Math.round(boxAlpha * 255)
     }
   }
 
-  const idat = zlib.deflateSync(raw, { level: 6 })
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4)
+  ihdr[8] = 8; ihdr[9] = 6 // bit depth 8, RGBA
 
+  const idat = zlib.deflateSync(raw, { level: 9 })
   const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
   return Buffer.concat([
     sig,
@@ -72,14 +129,11 @@ function makePng(size, r, g, b) {
 
 // ── Generate PNG icons ─────────────────────────────────────────────────────
 
-const [R, G, B] = [99, 102, 241]   // indigo-500
-
-const png512 = makePng(512, R, G, B)
+const png512 = makeIcon(512)
 fs.writeFileSync(path.join(BUILD_DIR, 'icon.png'), png512)
 console.log('✓ build/icon.png (512x512)')
 
-const png256 = makePng(256, R, G, B)
-fs.writeFileSync(path.join(BUILD_DIR, 'icon256.png'), png256)
+const png256 = makeIcon(256)
 
 // ── Minimal ICO (256x256 PNG embedded) ────────────────────────────────────
 // ICO format: ICONDIR + ICONDIRENTRY + raw PNG data (modern ICO supports PNG)
@@ -107,6 +161,4 @@ const ico = makeIco(png256)
 fs.writeFileSync(path.join(BUILD_DIR, 'icon.ico'), ico)
 console.log('✓ build/icon.ico (256x256 PNG-in-ICO)')
 
-// Cleanup temp file
-fs.unlinkSync(path.join(BUILD_DIR, 'icon256.png'))
 console.log('Icons ready in build/')
